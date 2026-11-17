@@ -1,0 +1,1935 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radar CEDIS</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: banda azul de marca a todo lo ancho, pestañas pegajosas, contenido en una columna de 880px.
+     Paleta y tipografía: Manual de Estandarización de Reportes IA de Zubex. */
+  :root{
+    --bg:#F8FAFC; --surface:#FFFFFF; --surface-2:#DBEAFE; --muted-bg:#E7EAF0;
+    --ink:#0B0F19; --ink-soft:#4B5565; --ink-faint:#6B7280; --border:#DCE3EC;
+    --primary:#0D18A8; --primary-dim:#0A1385; --primary-ink:#FFFFFF;
+    --accent:#227EF6; --accent-ink:#FFFFFF;
+    --success:#166534; --success-bg:#E3F3E9;
+    --danger:#991B1B; --danger-bg:#FBEAEA;
+    --warn:#8A6A1F; --warn-bg:#FBF1DD;
+    --shadow: 0 1px 2px rgba(13,24,168,.06), 0 8px 24px rgba(13,24,168,.08);
+    --font-display:'Poppins','Segoe UI',-apple-system,sans-serif;
+    --font-body:'Poppins','Segoe UI',-apple-system,sans-serif;
+    --font-mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0A0F2E; --surface:#121A3D; --surface-2:#1B2650; --muted-bg:#1E2436;
+      --ink:#F5F7FF; --ink-soft:#B7BEDD; --ink-faint:#8D95BC; --border:#2B3568;
+      --primary:#5B77E8; --primary-dim:#7A93F5; --primary-ink:#0A0F2E;
+      --accent:#5AA6FF; --accent-ink:#071022;
+      --success:#3FBE7B; --success-bg:#0F2A1C;
+      --danger:#F2726B; --danger-bg:#3A1414;
+      --warn:#E4C15C; --warn-bg:#332A10;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0A0F2E; --surface:#121A3D; --surface-2:#1B2650; --muted-bg:#1E2436;
+    --ink:#F5F7FF; --ink-soft:#B7BEDD; --ink-faint:#8D95BC; --border:#2B3568;
+    --primary:#5B77E8; --primary-dim:#7A93F5; --primary-ink:#0A0F2E;
+    --accent:#5AA6FF; --accent-ink:#071022;
+    --success:#3FBE7B; --success-bg:#0F2A1C;
+    --danger:#F2726B; --danger-bg:#3A1414;
+    --warn:#E4C15C; --warn-bg:#332A10;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--font-body);
+    padding-left:max(16px, env(safe-area-inset-left, 0px));
+    padding-right:max(16px, env(safe-area-inset-right, 0px));
+    overflow-x:clip;
+  }
+  body::before{
+    content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px);
+    background:var(--bg); z-index:30;
+  }
+  .wrap{max-width:880px; margin:0 auto;}
+
+  header.top{
+    background:var(--primary); padding-block:18px 14px;
+    box-shadow:0 0 0 100vmax var(--primary);
+    clip-path:inset(0 -100vmax);
+  }
+  .brand{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  .brand-name{font-weight:700; letter-spacing:.01em; font-size:32px; line-height:1; color:var(--primary-ink);}
+  .brand-name span{font-weight:300;}
+  .brand-sub{font-size:13px; color:var(--primary-ink); opacity:.8; margin-top:4px; font-weight:300;}
+  .viewer-pill{
+    display:flex; align-items:center; gap:8px; font-size:13px; color:var(--primary-ink);
+    background:color-mix(in srgb, var(--primary-ink) 14%, transparent);
+    border:1px solid color-mix(in srgb, var(--primary-ink) 32%, transparent);
+    padding:5px 12px 5px 6px; border-radius:999px; white-space:nowrap; min-width:0;
+  }
+  .viewer-pill img{width:22px; height:22px; border-radius:999px; display:block;}
+  .conn-dot{width:8px; height:8px; border-radius:999px; background:var(--ink-faint); flex:none; margin-left:4px;}
+  .conn-dot.ok{background:#3FBE7B;}
+  .conn-dot.bad{background:#F2726B;}
+
+  nav.tabs{
+    position:sticky; top:env(safe-area-inset-top, 0px); z-index:19; background:var(--bg);
+    display:flex; gap:6px; padding-block:10px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap;
+  }
+  .tab-btn{
+    font-family:var(--font-display); font-weight:600; font-size:19px; background:transparent; border:none;
+    color:var(--ink-faint); padding:6px 8px 10px; cursor:pointer; position:relative;
+  }
+  .tab-btn{display:inline-flex; align-items:center; gap:7px;}
+  .tab-ico{width:20px; height:20px; flex:none;}
+  .tab-btn[hidden]{display:none;}
+  .tab-btn.active{color:var(--primary);}
+  .tab-btn.active::after{content:""; position:absolute; left:0; right:0; bottom:-1px; height:3px; background:var(--accent); border-radius:2px 2px 0 0;}
+
+  main{padding-block:20px 24px;}
+  .panel{display:none; flex-direction:column; gap:18px;}
+  .panel.active{display:flex;}
+  .panel > *{min-width:0;}
+  .reg-sub{display:flex; flex-direction:column; gap:18px; min-width:0;}
+  .reg-sub[hidden]{display:none;}
+
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .stat{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; box-shadow:var(--shadow);}
+  .stat b{display:block; font-size:28px; font-weight:700; color:var(--primary); font-variant-numeric:tabular-nums;}
+  .stat span{font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em;}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; box-shadow:var(--shadow);}
+  .card h2{font-family:var(--font-display); font-weight:600; font-size:22px; margin:0 0 14px; color:var(--ink); text-wrap:balance;}
+  .card.stack{display:flex; flex-direction:column; gap:12px;}
+  .card.stack h2{margin-bottom:0;}
+
+  form.reg-form{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px;}
+  .field{display:flex; flex-direction:column; gap:5px; min-width:0;}
+  .field.full{grid-column:1/-1;}
+  .field label{font-size:12px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+  input:not([type="file"]):not([type="checkbox"]), select, textarea{
+    font-family:var(--font-body); font-size:16px; color:var(--ink); background:var(--surface-2);
+    border:1px solid var(--border); border-radius:9px; padding:10px 12px; min-width:0;
+  }
+  .field input, .field select, .field textarea{width:100%;}
+  textarea{resize:vertical; font-family:var(--font-mono); font-size:13px;}
+  select:disabled{opacity:.6; cursor:not-allowed;}
+  .field-hint.full{grid-column:1/-1;}
+  .field.ubic input{font-family:var(--font-mono); font-weight:600; font-size:20px; letter-spacing:.04em; text-transform:uppercase;}
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, .btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .field-hint{font-size:12px; min-height:15px; margin-top:1px;}
+  .field-hint.ok{color:var(--success);}
+  .field-hint.warn{color:var(--ink-faint);}
+
+  .btn{font-family:var(--font-body); font-weight:600; font-size:15px; cursor:pointer; border-radius:9px; padding:11px 20px; border:1px solid transparent; display:inline-block; text-align:center;}
+  .btn-primary{background:var(--accent); color:var(--accent-ink);}
+  .btn-primary:disabled{opacity:.5; cursor:not-allowed;}
+  .btn-ghost{background:transparent; border-color:var(--border); color:var(--ink-soft);}
+  .btn-success{background:var(--success-bg); color:var(--success); border-color:var(--success);}
+  .btn-danger{background:var(--danger-bg); color:var(--danger); border-color:var(--danger);}
+  .btn-sm{padding:5px 11px; font-size:12.5px;}
+  .btn-row{grid-column:1/-1; display:flex; justify-content:flex-end; gap:10px; margin-top:4px;}
+
+  .recent-item{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border);}
+  .recent-item:last-child{border-bottom:none;}
+  .recent-loc{font-family:var(--font-mono); font-weight:600; font-size:15px; color:var(--primary); background:var(--surface-2); border-radius:7px; padding:4px 9px; flex:none;}
+  .recent-meta{flex:1; min-width:0;}
+  .recent-code{font-weight:600; font-size:14.5px; overflow-wrap:anywhere;}
+  .recent-sub{font-size:12.5px; color:var(--ink-soft);}
+  .icon-btn{background:transparent; border:1px solid var(--border); color:var(--ink-faint); border-radius:7px; width:30px; height:30px; cursor:pointer; flex:none; font-size:15px;}
+  .confirm-row{display:flex; gap:6px; align-items:center; flex:none; flex-wrap:wrap; justify-content:flex-end;}
+  .confirm-row span{font-size:12px; color:var(--danger);}
+
+  .seg{display:inline-flex; background:var(--surface-2); border-radius:9px; padding:3px; gap:2px; align-self:flex-start;}
+  .seg button{font-family:var(--font-body); font-weight:600; font-size:13.5px; border:none; background:transparent; color:var(--ink-soft); padding:8px 14px; border-radius:7px; cursor:pointer;}
+  .seg button.active{background:var(--surface); color:var(--primary); box-shadow:0 1px 2px rgba(13,24,168,.15);}
+  .search-row{display:flex; gap:10px; flex-wrap:wrap;}
+  .search-row input{flex:1; min-width:160px;}
+  .result-card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:var(--shadow); display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  .result-loc{font-family:var(--font-mono); font-weight:700; font-size:26px; letter-spacing:.03em; color:var(--primary-ink); background:var(--primary); border-radius:10px; padding:10px 16px; text-align:center; min-width:84px; flex:none;}
+  .result-body{flex:1; min-width:180px; display:flex; flex-direction:column; gap:2px;}
+  .result-code{font-weight:700; font-size:16px; overflow-wrap:anywhere;}
+  .result-line{font-size:13px; color:var(--ink-soft);}
+  .empty-state{text-align:center; color:var(--ink-soft); font-size:14px; padding:34px 10px; border:1px dashed var(--border); border-radius:14px;}
+
+  .chips{display:flex; gap:8px; flex-wrap:wrap;}
+  .chip{font-family:var(--font-body); font-size:13px; font-weight:600; padding:7px 14px; border-radius:999px; border:1px solid var(--border); background:var(--surface); color:var(--ink-soft); cursor:pointer;}
+  .chip.active{background:var(--primary); color:var(--primary-ink); border-color:var(--primary);}
+  .table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface);}
+  table{border-collapse:collapse; width:100%; min-width:680px; font-size:13.5px;}
+  th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); background:var(--surface-2); padding:10px 12px; position:sticky; top:0;}
+  td{padding:9px 12px; border-top:1px solid var(--border); vertical-align:top;}
+  td.mono{font-family:var(--font-mono);}
+  .pill{font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; display:inline-block;}
+  .pill.activo{background:var(--success-bg); color:var(--success);}
+  .pill.surtido{background:var(--muted-bg); color:var(--ink-faint);}
+  .pill.tot{background:var(--surface-2); color:var(--primary);}
+  .wrap[hidden]{display:none;}
+  .login-gate{position:fixed; inset:0; z-index:100; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:24px 16px; overflow:auto;}
+  .login-gate[hidden]{display:none;}
+  .login-card{width:100%; max-width:380px; background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); padding:28px 24px; display:flex; flex-direction:column; gap:16px;}
+  .login-brand{font-weight:700; font-size:30px; line-height:1; color:var(--primary);}
+  .login-brand span{font-weight:300;}
+  .login-sub{font-size:13px; color:var(--ink-soft); margin-top:-8px;}
+  .login-card form{display:flex; flex-direction:column; gap:14px;}
+  .login-err{font-size:13px; color:var(--danger); min-height:18px;}
+  .role-tag{font-size:11.5px; font-weight:600; opacity:.9; padding-left:2px;}
+  .logout-btn{background:none; border:none; color:inherit; font:inherit; font-size:12px; font-weight:600; text-decoration:underline; cursor:pointer; padding:0 2px;}
+  .fb-widget[hidden]{display:none;}
+  .fb-fab{position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); z-index:40; width:58px; height:58px; border-radius:50%; border:none; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 6px 18px rgba(13,24,168,.35); transition:transform .15s ease;}
+  .fb-fab:hover{transform:scale(1.06);}
+  .fb-fab[aria-expanded="true"]{background:var(--accent);}
+  .fb-pop{position:fixed; right:16px; bottom:calc(88px + env(safe-area-inset-bottom, 0px)); z-index:41; width:min(380px, calc(100vw - 32px)); max-height:calc(100vh - 120px); display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 12px 36px rgba(10,15,46,.28); overflow:hidden;}
+  .fb-pop[hidden]{display:none;}
+  .fb-pop-head{display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--primary); color:#fff; padding:12px 14px 12px 18px;}
+  .fb-pop-title{font-weight:600; font-size:14.5px;}
+  .fb-close{background:none; border:none; color:#fff; font-size:26px; line-height:1; cursor:pointer; padding:0 6px;}
+  .fb-pop-body{padding:16px 18px 18px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;}
+  .fb-form{display:flex; flex-direction:column; gap:12px;}
+  .fb-form[hidden]{display:none;}
+  .fb-pop-body h2{font-size:16px; margin:0 0 4px;}
+  .fb-pop .btn-row{justify-content:flex-end;}
+  .fb-inbox{display:flex; flex-direction:column; gap:14px; min-width:0;}
+  .fb-inbox[hidden]{display:none;}
+  .fb-ok{background:var(--success-bg); color:var(--success); border:1px solid var(--success); border-radius:12px; padding:14px 16px; font-size:14px; font-weight:500;}
+  .fb-ok[hidden]{display:none;}
+  .fb-item{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; box-shadow:var(--shadow);}
+  .fb-item .fb-head{display:flex; gap:8px 12px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft);}
+  .fb-item .fb-msg{font-size:14px; white-space:pre-wrap; overflow-wrap:anywhere;}
+  .pill.sug{background:var(--surface-2); color:var(--primary);}
+  .pill.agr{background:var(--success-bg); color:var(--success);}
+  .pill.queja{background:var(--danger-bg); color:var(--danger);}
+  .rec-actions, .result-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .take-form{flex-basis:100%; display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; padding:10px 12px; border:1px dashed var(--border); border-radius:10px; background:var(--surface);}
+  .take-form label{font-size:12px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+  .take-form input{width:96px; text-align:center; font-weight:600;}
+  .take-msg{flex-basis:100%; font-size:12.5px; color:var(--ink-soft);}
+  .take-msg.warn{color:var(--danger);}
+  .llg-filters{display:grid; grid-template-columns:minmax(150px,220px) 1fr; gap:10px;}
+  .llg-list{display:flex; flex-direction:column; gap:10px;}
+  .llg-ped{border:1px solid var(--border); border-radius:12px; background:var(--surface); box-shadow:var(--shadow); overflow:hidden;}
+  .llg-ped > summary{list-style:none; cursor:pointer; padding:12px 14px; display:flex; gap:6px 14px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+  .llg-ped > summary::-webkit-details-marker{display:none;}
+  .llg-ped > summary::before{content:"▸"; color:var(--ink-faint); font-size:12px; margin-right:-6px; transition:transform .15s;}
+  .llg-ped[open] > summary::before{transform:rotate(90deg);}
+  .llg-ped .ped-main{display:flex; flex-direction:column; gap:1px; flex:1 1 180px; min-width:0;}
+  .llg-ped .ped-num{font-family:var(--font-mono); font-weight:600; font-size:15px;}
+  .llg-ped .ped-cli{font-size:12.5px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis;}
+  .llg-ped .ped-pills{display:flex; gap:6px; flex-wrap:wrap;}
+  .llg-ped .table-wrap{border:none; border-top:1px solid var(--border); border-radius:0;}
+  table.llg-table{min-width:740px;}
+  .code-desc{display:block; font-size:12.5px; font-weight:400; color:var(--ink-soft); font-family:var(--font-body); margin-top:1px; overflow-wrap:anywhere;}
+  .code-std{display:inline-block; font-size:11.5px; font-weight:600; font-family:var(--font-body); color:var(--primary); background:var(--surface-2); border-radius:999px; padding:2px 9px; margin-top:4px;}
+  .llg-table .sub{display:block; font-size:12px; color:var(--ink-soft); font-family:var(--font-body);}
+  @media (max-width:560px){ .llg-filters{grid-template-columns:1fr;} }
+
+  #toast{
+    position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); transform:translate(-50%,160%);
+    background:var(--ink); color:var(--bg); font-size:13.5px; font-weight:500; padding:11px 18px; border-radius:9px;
+    box-shadow:var(--shadow); transition:transform .25s ease; z-index:70; max-width:90vw; text-align:center;
+  }
+  #toast.show{transform:translate(-50%,0);}
+  .banner{background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); border-radius:10px; padding:12px 16px; font-size:13.5px; margin-bottom:14px;}
+  .hint{font-size:12.5px; color:var(--ink-faint); font-weight:300; margin:0;}
+
+  .upload-box{border:2px dashed var(--border); border-radius:12px; padding:24px 16px; text-align:center; display:flex; flex-direction:column; gap:10px; align-items:center;}
+  .upload-box input[type=file]{display:none;}
+  .meta-row{display:flex; flex-wrap:wrap; gap:8px 20px; font-size:13px; color:var(--ink-soft);}
+  .meta-row b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums;}
+
+  .map-stats{display:grid; grid-template-columns:repeat(5,1fr); gap:10px;}
+  .map-legend{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:12.5px; color:var(--ink-soft);}
+  .map-legend i{display:inline-block; width:16px; height:16px; border-radius:4px; vertical-align:-3px; margin-right:6px; border:1px solid var(--border);}
+  .map-legend i.sw-occ{background:var(--primary); border-color:var(--primary);}
+  .map-legend i.sw-free{background:var(--surface-2);}
+  .map-legend i.sw-wide{background:var(--surface-2); width:30px;}
+  .rack-card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:12px; min-width:0;}
+  .rack-head{display:flex; align-items:baseline; justify-content:space-between; gap:4px 16px; flex-wrap:wrap;}
+  .rack-name{font-weight:700; font-size:20px; color:var(--ink);}
+  .rack-meta{font-size:12.5px; color:var(--ink-soft); font-variant-numeric:tabular-nums;}
+  .rack-meta b{color:var(--ink); font-weight:600;}
+  .bar{height:8px; background:var(--muted-bg); border-radius:999px; overflow:hidden;}
+  .bar > span{display:block; height:100%; border-radius:999px; background:var(--accent);}
+  .bar.warn > span{background:var(--warn);}
+  .bar.full > span{background:var(--danger);}
+  .space-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(38px, 1fr)); gap:6px;}
+  .space{
+    font-family:var(--font-mono); font-size:12px; font-weight:600; height:38px; padding:0; cursor:pointer;
+    border-radius:7px; border:1px solid var(--border); background:var(--surface-2); color:var(--ink-soft);
+  }
+  .space.occ{background:var(--primary); color:var(--primary-ink); border-color:var(--primary);}
+  .space.wide{grid-column:span 2;}
+  .space.sel{outline:3px solid var(--accent); outline-offset:1px;}
+  .space-detail{border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--bg); display:flex; flex-direction:column; gap:6px;}
+  .space-detail-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .space-detail-head b{font-family:var(--font-mono); font-size:16px;}
+  .space-detail .line{font-size:13px; color:var(--ink-soft); padding-top:6px; border-top:1px solid var(--border);}
+  .space-detail .line b{color:var(--ink); font-weight:600;}
+  .space-detail .line.rec{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+  .space-detail .line.rec > div:first-child{flex:1 1 200px; min-width:0;}
+  .space-detail .lib-all{padding-top:8px; border-top:1px solid var(--border); display:flex; justify-content:flex-end;}
+  .corte-summary{font-size:13px; color:var(--ink-soft); display:flex; flex-wrap:wrap; gap:4px 18px;}
+  .corte-summary b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums;}
+  table.corte-table{min-width:1060px;}
+  .corte-table td{vertical-align:middle; white-space:nowrap;}
+  .corte-table td.desc{max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-soft);}
+  .corte-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .corte-table tr.off td{opacity:.6;}
+  .corte-table input[type="checkbox"]{width:18px; height:18px; accent-color:var(--primary);}
+  .cut-sel{font-size:13px; padding:6px 8px; min-width:86px; width:auto;}
+  .cut-ubic{display:flex; gap:6px; flex-wrap:nowrap;}
+  .cut-ubic select:first-child{min-width:120px;}
+  .cut-note{font-size:12px; min-width:170px;}
+  .cut-note.ok{color:var(--success);}
+  .cut-note.warn{color:var(--warn);}
+  .cut-note.bad{color:var(--danger);}
+  .cut-note.muted{color:var(--ink-faint);}
+  .corte-actions{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+
+  @media (max-width:400px){
+    nav.tabs{gap:2px;}
+    nav.tabs .tab-btn{font-size:13.5px; padding-inline:3px; gap:3px;}
+    nav.tabs .tab-ico{width:14px; height:14px;}
+  }
+  @media (max-width:520px){
+    form.reg-form{grid-template-columns:1fr;}
+    .brand-name{font-size:28px;}
+    .tab-btn{font-size:15px; padding-inline:5px; gap:5px;}
+    .tab-ico{width:17px; height:17px;}
+    .map-stats{grid-template-columns:1fr 1fr;}
+    .map-stats .stat:last-child{grid-column:1 / -1;}
+    .stats{gap:8px;}
+    .stat{padding:10px 10px;}
+    .stat b{font-size:22px;} .stat span{font-size:10px;}
+  }
+  @media (prefers-reduced-motion: reduce){ #toast{transition:none;} }
+</style>
+
+<div class="login-gate" id="loginGate">
+  <div class="login-card">
+    <div class="login-brand">RADAR<span>CEDIS</span></div>
+    <div class="login-sub">Cedis Zubex - Producto Terminado</div>
+    <form id="loginForm" autocomplete="off">
+      <div class="field">
+        <label for="loginUser">Usuario</label>
+        <input id="loginUser" autocomplete="username" autocapitalize="none" required>
+      </div>
+      <div class="field">
+        <label for="loginPass">Contraseña</label>
+        <input id="loginPass" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="login-err" id="loginErr" role="alert"></div>
+      <button type="submit" class="btn btn-primary">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<div class="wrap" hidden>
+  <header class="top">
+    <div class="brand">
+      <div>
+        <div class="brand-name">RADAR<span>CEDIS</span></div>
+        <div class="brand-sub">Cedis Zubex - Producto Terminado</div>
+      </div>
+      <div class="viewer-pill">
+        <span class="conn-dot" id="connDot"></span>
+        <img id="viewerAvatar" src="" alt="" hidden>
+        <span id="viewerName">Cargando…</span>
+        <span class="role-tag" id="roleTag"></span>
+        <button type="button" class="logout-btn" id="logoutBtn">Salir</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="buscar"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg><span>Buscar</span></button>
+    <button class="tab-btn" data-tab="llegadas"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5"/><path d="M9.5 12.5h6M9.5 16.5h6"/></svg><span>Cortes</span></button>
+    <button class="tab-btn" data-tab="mapa"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Lay Out</span></button>
+    <button class="tab-btn" data-tab="registrar" data-write="true"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/></svg><span>Registro</span></button>
+  </nav>
+
+  <main>
+    <div class="banner" id="dbBanner" hidden>
+      No hay conexión con la base de datos. Revisa que firebase-config.js tenga los valores de tu proyecto de Firebase. Si este mensaje no desaparece, avisa a quien administra la plataforma.
+    </div>
+
+    <section class="panel" id="panel-registrar">
+      <div class="seg" id="regSeg" role="tablist" aria-label="Forma de hacer el registro">
+        <button type="button" class="active" data-reg="excel">Desde Excel</button>
+        <button type="button" data-reg="manual">Manual</button>
+      </div>
+      <div id="reg-excel" class="reg-sub">
+      <div class="card stack">
+        <h2>Registrar desde Excel</h2>
+        <p class="hint">Copia la tabla del corte desde Excel (con su fila de títulos) y pégala aquí, o adjunta el archivo. Radar lee Pedido, Código, Lote, Pzas y Mts, y agrega la columna Ubicación para que elijas dónde se acomoda cada partida. Al final se guardan todas juntas.</p>
+        <div class="field">
+          <label for="corteText">Corte copiado de Excel</label>
+          <textarea id="corteText" rows="4" placeholder="Pega aquí el corte…" autocomplete="off"></textarea>
+        </div>
+        <div class="corte-actions">
+          <button type="button" class="btn btn-primary" id="corteRead">Leer corte</button>
+          <label class="btn btn-ghost" for="corteFile" id="corteFileLabel">Adjuntar Excel</label>
+          <input type="file" id="corteFile" accept=".xlsx,.xls,.csv" hidden>
+          <button type="button" class="btn btn-ghost" id="corteClear">Limpiar</button>
+        </div>
+      </div>
+      <div id="corteResult"></div>
+      </div>
+      <div id="reg-manual" class="reg-sub" hidden>
+      <div class="stats">
+        <div class="stat"><b id="statActivos">–</b><span>Ubicaciones activas</span></div>
+        <div class="stat"><b id="statHoy">–</b><span>Registrados hoy</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Registrar ubicación</h2>
+        <form class="reg-form" id="regForm">
+          <div class="field">
+            <label for="f-pedido">Pedido</label>
+            <input id="f-pedido" name="pedido" autocomplete="off" required>
+          </div>
+          <div class="field">
+            <label for="f-codigo">Código de material</label>
+            <input id="f-codigo" name="codigo" autocomplete="off" required>
+          </div>
+          <div class="field">
+            <label for="f-desc">Descripción (opcional)</label>
+            <input id="f-desc" name="desc" maxlength="60" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="f-cantidad">Cantidad</label>
+            <input id="f-cantidad" name="cantidad" type="number" step="any" min="0.01" autocomplete="off" required>
+          </div>
+          <div class="field">
+            <label for="f-cajas">Cajas (opcional)</label>
+            <input id="f-cajas" name="cajas" type="number" step="1" min="1" inputmode="numeric" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="f-std">Estándar por caja, pzas (opcional)</label>
+            <input id="f-std" name="std" type="number" step="any" min="0.01" inputmode="decimal" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="f-lote">Lote</label>
+            <input id="f-lote" name="lote" autocomplete="off" required>
+          </div>
+          <div class="field">
+            <label for="f-ubic">Ubicación (escanear o escribir)</label>
+            <input id="f-ubic" name="ubic" maxlength="12" autocapitalize="characters" placeholder="Ej. A-027" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="f-rack">Rack</label>
+            <select id="f-rack" name="rack" required></select>
+          </div>
+          <div class="field">
+            <label for="f-espacio">Espacio</label>
+            <select id="f-espacio" name="espacio" required disabled></select>
+          </div>
+          <div class="field-hint full" id="ubicHint"></div>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" id="submitBtn">Guardar ubicación</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Últimos registros</h2>
+        <div id="recentList"><p class="hint">Aún no hay registros. Guarda la primera ubicación con el formulario de arriba.</p></div>
+      </div>
+      </div>
+    </section>
+
+
+    <section class="panel active" id="panel-buscar">
+      <div class="card stack">
+        <h2>Buscar material para surtir</h2>
+        <div class="seg" id="searchSeg">
+          <button type="button" class="active" data-mode="codigo">Por código</button>
+          <button type="button" data-mode="pedido">Por pedido</button>
+        </div>
+        <form class="search-row" id="searchForm">
+          <input id="searchInput" placeholder="Escribe el código de material…" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Buscar</button>
+        </form>
+      </div>
+      <div id="searchResults" style="display:flex; flex-direction:column; gap:10px;"></div>
+    </section>
+
+    <section class="panel" id="panel-llegadas">
+      <div class="card stack">
+        <h2>Cortes recibidos</h2>
+        <p class="hint">Resumen de lo que se recibió en cada corte, tal como se pegó en Registro.</p>
+        <div class="llg-filters">
+          <select id="llgFecha" aria-label="Fecha del corte"></select>
+          <input id="llgSearch" placeholder="Buscar pedido, código, cliente o fecha (28/10/2026)…" autocomplete="off">
+        </div>
+      </div>
+      <div class="stats" style="grid-template-columns:repeat(2,1fr);">
+        <div class="stat"><b id="llgPedidos">–</b><span>Pedidos</span></div>
+        <div class="stat"><b id="llgPartidas">–</b><span>Partidas</span></div>
+      </div>
+      <div class="llg-list" id="llgList"></div>
+    </section>
+
+    <section class="panel" id="panel-mapa">
+      <div class="card stack">
+        <h2>Lay Out del almacén</h2>
+        <p class="hint">Cada cuadro es un espacio de rack. Un espacio cuenta como ocupado cuando tiene material activo. Toca un espacio para ver qué hay en él.</p>
+        <div class="map-stats">
+          <div class="stat"><b id="mapTotal">–</b><span>Espacios</span></div>
+          <div class="stat"><b id="mapTarTotal">–</b><span>Tarimas</span></div>
+          <div class="stat"><b id="mapOcc">–</b><span>Espacios ocupados</span></div>
+          <div class="stat"><b id="mapFree">–</b><span>Espacios libres</span></div>
+          <div class="stat"><b id="mapPct">–</b><span>Ocupación</span></div>
+        </div>
+        <div class="map-legend">
+          <span><i class="sw-occ"></i>Ocupado</span>
+          <span><i class="sw-free"></i>Libre</span>
+          <span><i class="sw-wide"></i>Espacio de 4 tarimas</span>
+        </div>
+        <p class="hint" id="mapCapacity"></p>
+      </div>
+      <div id="mapRacks" style="display:flex; flex-direction:column; gap:14px;"></div>
+      <div id="mapOutside"></div>
+    </section>
+
+  </main>
+
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="fb-widget" id="fbWidget" hidden>
+  <div class="fb-pop" id="fbPop" role="dialog" aria-label="Buzón de Almacén PT" hidden>
+    <div class="fb-pop-head">
+      <div class="fb-pop-title">Buzón · Almacén PT</div>
+      <button type="button" class="fb-close" id="fbClose" aria-label="Cerrar buzón">&times;</button>
+    </div>
+    <div class="fb-pop-body">
+      <div class="seg" id="fbView" data-write="true" hidden>
+        <button type="button" class="active" data-v="enviar">Enviar</button>
+        <button type="button" data-v="recibidos" id="fbViewRec">Recibidos</button>
+      </div>
+      <div class="fb-form" id="fbSendView">
+        <div>
+          <h2>¿Tienes alguna sugerencia o agradecimiento?</h2>
+          <p class="hint">Aquí nos lo puedes hacer llegar. Tu mensaje le llega directo a Almacén PT.</p>
+        </div>
+        <div class="chips" id="fbTipo" role="group" aria-label="Tipo de mensaje">
+          <button type="button" class="chip active" data-t="sugerencia">Sugerencia</button>
+          <button type="button" class="chip" data-t="agradecimiento">Agradecimiento</button>
+          <button type="button" class="chip" data-t="queja">Queja</button>
+        </div>
+        <div class="field">
+          <label for="fbMsg">Tu mensaje</label>
+          <textarea id="fbMsg" rows="4" maxlength="1000" placeholder="Cuéntanos lo que quieras decirle a Almacén PT…" autocomplete="off"></textarea>
+          <div class="field-hint" id="fbCount">0 / 1000</div>
+        </div>
+        <div class="field">
+          <label for="fbNombre">Tu nombre (opcional)</label>
+          <input id="fbNombre" maxlength="60" placeholder="Si prefieres, déjalo vacío" autocomplete="off">
+        </div>
+        <div class="btn-row"><button type="button" class="btn btn-primary" id="fbSend">Enviar mensaje</button></div>
+        <div class="fb-ok" id="fbOk" role="status" hidden>¡Gracias! Tu mensaje ya llegó a Almacén PT.</div>
+      </div>
+      <div class="fb-inbox" id="fbInbox" hidden>
+        <div class="chips" id="fbFiltro">
+          <button type="button" class="chip active" data-f="todos">Todos</button>
+          <button type="button" class="chip" data-f="sugerencia">Sugerencias</button>
+          <button type="button" class="chip" data-f="agradecimiento">Agradecimientos</button>
+          <button type="button" class="chip" data-f="queja">Quejas</button>
+        </div>
+        <div id="fbList" style="display:flex; flex-direction:column; gap:10px;"></div>
+      </div>
+    </div>
+  </div>
+  <button type="button" class="fb-fab" id="fbFab" aria-label="Abrir buzón de sugerencias" aria-expanded="false" title="Buzón de sugerencias">
+    <svg viewBox="0 0 24 24" width="33" height="33" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 15V9.5A4.5 4.5 0 0 1 7.5 5H15a6 6 0 0 1 6 6v4z"/>
+      <path d="M3 15h18"/>
+      <path d="M8 10.5h5"/>
+      <path d="M12 15v6M8.5 21h7"/>
+      <path d="M17.5 5V2.5h3.2v2.2z" fill="currentColor"/>
+    </svg>
+  </button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="firestore-shim.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var state = {
+    db: null, user: null, myId: null,
+    records: [],
+    searchMode: "codigo",
+    profilesCache: {},
+    comentarios: [], fbTipo: "sugerencia", fbFiltro: "todos", fbVista: "enviar",
+    llegadas: [], llegMap: {}, llgFecha: null, llgOpen: {}
+  };
+
+  /* ---------- utilidades ---------- */
+  function norm(s){ return (s == null ? "" : String(s)).trim().toUpperCase(); }
+  function esc(s){ var d=document.createElement("div"); d.textContent = (s==null?"":String(s)); return d.innerHTML; }
+  function escAttr(s){ return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+  function fmtDateTime(iso){
+    if(!iso) return "—";
+    try{ return new Date(iso).toLocaleString("es-MX",{dateStyle:"short", timeStyle:"short"}); }
+    catch(e){ return "—"; }
+  }
+  function isToday(iso){
+    if(!iso) return false;
+    var d = new Date(iso), n = new Date();
+    return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+  }
+  function showToast(msg, isError){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.style.background = isError ? "var(--danger)" : "var(--ink)";
+    t.style.color = isError ? "var(--danger-bg)" : "var(--bg)";
+    t.classList.add("show");
+    clearTimeout(t._h);
+    t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200);
+  }
+  function dbMissing(){ showToast("La base de datos no está disponible ahora mismo.", true); }
+
+  /* ---------- inicio de sesión ----------
+     Los usuarios viven en la colección "usuarios" de la base de datos, con la contraseña guardada como hash
+     (PBKDF2-SHA256 con sal propia), nunca en texto. Se crean y cambian con herramientas/administrar-usuarios.html.
+     Ojo: la comparación se hace en el navegador y las reglas de la base están abiertas, así que esto ordena quién ve y
+     quién captura, pero no es seguridad real (ver DESVIACIONES.md). */
+/* HASH-BEGIN */
+function b64ToBytes(b){ var s = atob(b), a = new Uint8Array(s.length); for(var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
+function bytesToB64(buf){ var a = new Uint8Array(buf), s = ""; for(var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); }
+function hashPassword(pw, saltBytes, iter){
+  var enc = new TextEncoder();
+  return crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveBits"]).then(function(k){
+    return crypto.subtle.deriveBits({name: "PBKDF2", hash: "SHA-256", salt: saltBytes, iterations: iter}, k, 256);
+  }).then(bytesToB64);
+}
+/* HASH-END */
+  var USER_RE = /^[a-z0-9._-]{1,40}$/;
+  function userFromDoc(d, id){
+    return {u: id, name: d.name || id, write: d.write === true, label: d.label || "", tabs: (Array.isArray(d.tabs) && d.tabs.length) ? d.tabs : null};
+  }
+  function verifyLogin(u, pw){
+    if(!USER_RE.test(u) || !pw || !(window.crypto && crypto.subtle)) return Promise.resolve(null);
+    return state.db.collection("usuarios").doc(u).get().then(function(snap){
+      if(!snap.exists) return null;
+      var d = snap.data();
+      if(!d.salt || !d.hash || !(d.iter > 0)) return null;
+      return hashPassword(pw, b64ToBytes(d.salt), d.iter).then(function(h){ return h === d.hash ? userFromDoc(d, snap.id) : null; });
+    });
+  }
+/* LOGIN-END */
+  var session = null;
+  function canWrite(){ return !!(session && session.write); }
+  function canTab(name){ return !!session && (!session.tabs || session.tabs.indexOf(name) !== -1); }
+  function denyWrite(){ showToast("Tu usuario es de solo consulta: no puede registrar cambios.", true); }
+  function ssGet(k){ try{ return sessionStorage.getItem(k); }catch(e){ return null; } }
+  function ssSet(k,v){ try{ sessionStorage.setItem(k,v); }catch(e){} }
+  function ssDel(k){ try{ sessionStorage.removeItem(k); }catch(e){} }
+  function applySession(){
+    document.getElementById("loginGate").hidden = !!session;
+    document.querySelector(".wrap").hidden = !session;
+    document.getElementById("fbWidget").hidden = !session;
+    if(!session) fbOpen(false);
+    else if(!canWrite() && state.fbVista === "recibidos") fbView("enviar");
+    document.querySelectorAll(".tab-btn").forEach(function(b){ b.hidden = !canTab(b.dataset.tab); });
+    document.querySelectorAll('[data-write="true"]').forEach(function(el){ if(!canWrite()) el.hidden = true; else if(!el.classList.contains("tab-btn")) el.hidden = false; });
+    document.getElementById("roleTag").textContent = session ? "· " + session.name + " (" + session.label + ")" : "";
+    if(session){
+      var act = document.querySelector(".panel.active");
+      if(act && !canTab(act.id.replace("panel-", ""))) selectTab("buscar");
+      renderMap(); renderSearch(); renderRecent(); renderBuzon();
+      tryDeepLink();
+    }
+  }
+  document.getElementById("loginForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var u = document.getElementById("loginUser").value.trim().toLowerCase();
+    var pw = document.getElementById("loginPass").value;
+    var err = document.getElementById("loginErr"), btn = e.target.querySelector("button[type=submit]");
+    if(!state.db){ err.textContent = "No hay conexión con la base de datos. Revisa firebase-config.js."; return; }
+    if(!(window.crypto && crypto.subtle)){ err.textContent = "Abre la página desde https o desde localhost para poder iniciar sesión."; return; }
+    btn.disabled = true; err.textContent = "";
+    verifyLogin(u, pw).then(function(hit){
+      if(!hit){
+        err.textContent = "Usuario o contraseña incorrectos.";
+        document.getElementById("loginPass").value = "";
+        return;
+      }
+      session = hit; ssSet("radarcedis_user", hit.u);
+      document.getElementById("loginUser").value = ""; document.getElementById("loginPass").value = "";
+      selectTab("buscar");
+      applySession();
+    }).catch(function(){
+      err.textContent = "No se pudo validar el usuario. Intenta de nuevo.";
+    }).finally(function(){ btn.disabled = false; });
+  });
+  document.getElementById("logoutBtn").addEventListener("click", function(){
+    session = null; ssDel("radarcedis_user");
+    takeOpen = null; takeVal = ""; takeTot = ""; libConfirm = null; mapSel = null;
+    applySession();
+    document.getElementById("loginUser").focus();
+  });
+
+  /* ---------- pestañas ---------- */
+  function selectTab(name){
+    if((name === "registrar" && !canWrite()) || !canTab(name)) name = "buscar";
+    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
+    document.querySelectorAll(".panel").forEach(function(p){ p.classList.toggle("active", p.id === "panel-" + name); });
+  }
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ selectTab(btn.dataset.tab); });
+  });
+
+  /* ---------- llegadas (vista de comercial) ---------- */
+  function fmtCorteFecha(f){
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f || "");
+    return m ? m[3] + "/" + m[2] + "/" + m[1] : (f || "—");
+  }
+  function renderLlegadas(){
+    var list = document.getElementById("llgList");
+    if(!list) return;
+    var fechas = [];
+    state.llegadas.forEach(function(L){ if(L.corte_fecha && fechas.indexOf(L.corte_fecha) === -1) fechas.push(L.corte_fecha); });
+    fechas.sort().reverse();
+    if(state.llgFecha === null && fechas.length) state.llgFecha = fechas[0];
+    var sel = document.getElementById("llgFecha");
+    var optsHtml = '<option value="ALL">Todos los cortes</option>' + fechas.map(function(f){ return '<option value="' + escAttr(f) + '">Corte del ' + esc(fmtCorteFecha(f)) + '</option>'; }).join("");
+    if(sel._sig !== optsHtml){ sel.innerHTML = optsHtml; sel._sig = optsHtml; }
+    sel.value = (state.llgFecha && (state.llgFecha === "ALL" || fechas.indexOf(state.llgFecha) !== -1)) ? state.llgFecha : "ALL";
+
+    var q = norm(document.getElementById("llgSearch").value);
+    var fecha = sel.value;
+    var shown = state.llegadas.filter(function(L){ return fecha === "ALL" || L.corte_fecha === fecha; }).map(function(L){ return {L: L}; }).filter(function(x){
+      if(!q) return true;
+      return [x.L.pedido, x.L.codigo, x.L.cliente, x.L.descripcion, x.L.lote, fmtCorteFecha(x.L.corte_fecha), x.L.corte_fecha, x.L.fecha_entrega].some(function(v){ return norm(v).indexOf(q) !== -1; });
+    });
+
+    var peds = {}, order = [];
+    shown.forEach(function(x){
+      var g = peds[x.L.pedido];
+      if(!g){ g = peds[x.L.pedido] = {pedido: x.L.pedido, cliente: x.L.cliente, items: [], t: ""}; order.push(g); }
+      g.items.push(x);
+      if(!g.cliente && x.L.cliente) g.cliente = x.L.cliente;
+      if(String(x.L.creado_en || "") > g.t) g.t = String(x.L.creado_en || "");
+    });
+    order.sort(function(a, b){ return a.t < b.t ? 1 : (a.t > b.t ? -1 : (a.pedido < b.pedido ? -1 : 1)); });
+
+    document.getElementById("llgPedidos").textContent = order.length;
+    document.getElementById("llgPartidas").textContent = shown.length;
+
+    if(!shown.length){
+      list.innerHTML = '<div class="empty-state">' + (state.llegadas.length
+        ? "No hay partidas que coincidan con la búsqueda."
+        : "Aún no se ha registrado ningún corte. Cuando se pegue en Registro, el resumen de lo que llegó aparecerá aquí.") + '</div>';
+      return;
+    }
+    var openDefault = order.length <= 4;
+    list.innerHTML = order.map(function(g){
+      var tp = 0, tm = 0;
+      g.items.forEach(function(x){ tp += Number(x.L.pzas) || 0; tm += Number(x.L.mts) || 0; });
+      var pills = (tp ? '<span class="pill tot">' + esc(fmtQty(tp)) + ' pzas</span>' : '') + (tm ? '<span class="pill tot">' + esc(fmtQty(tm)) + ' m</span>' : '');
+      var open = state.llgOpen[g.pedido] !== undefined ? state.llgOpen[g.pedido] : openDefault;
+      var rows = g.items.map(function(x){
+        var L = x.L;
+        return '<tr><td>' + esc(fmtCorteFecha(L.corte_fecha)) + '</td><td class="mono">' + esc(L.codigo) + (codeInfo(L.codigo).desc || L.descripcion ? '<span class="sub">' + esc(L.descripcion || codeInfo(L.codigo).desc) + '</span>' : '') + '</td>' +
+          '<td class="mono">' + esc(L.lote) + '</td>' +
+          '<td>' + (L.cajas > 0 ? esc(fmtQty(L.cajas)) : "—") + '</td>' +
+          '<td>' + (function(){ var e = Number(L.estandar) > 0 ? Number(L.estandar) : (codeInfo(L.codigo).std || stdFrom(L.pzas, L.cajas)); return e ? esc(fmtQty(e)) : "—"; })() + '</td>' +
+          '<td>' + (L.pzas == null ? "—" : esc(fmtQty(L.pzas))) + '</td>' +
+          '<td>' + (L.mts == null ? "—" : esc(fmtQty(L.mts))) + '</td>' +
+          '<td>' + esc(L.fecha_entrega || "—") + '</td></tr>';
+      }).join("");
+      return '<details class="llg-ped" data-ped="' + escAttr(g.pedido) + '"' + (open ? " open" : "") + '><summary>' +
+        '<div class="ped-main"><span class="ped-num">Pedido ' + esc(g.pedido) + '</span><span class="ped-cli">' + esc(g.cliente || "") + ' · ' + g.items.length + (g.items.length === 1 ? ' partida' : ' partidas') + '</span></div>' +
+        '<div class="ped-pills">' + pills + '</div></summary>' +
+        '<div class="table-wrap"><table class="llg-table"><thead><tr><th>Corte</th><th>Código</th><th>Lote</th><th>Cajas</th><th>Estándar caja</th><th>Pzas</th><th>Mts</th><th>Entrega CEDIS</th></tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+    }).join("");
+  }
+  document.getElementById("llgFecha").addEventListener("change", function(){ state.llgFecha = this.value; renderLlegadas(); });
+  document.getElementById("llgSearch").addEventListener("input", renderLlegadas);
+  document.getElementById("llgList").addEventListener("toggle", function(e){
+    var d = e.target;
+    if(d && d.dataset && d.dataset.ped !== undefined) state.llgOpen[d.dataset.ped] = d.open;
+  }, true);
+
+  /* ---------- buzón: sugerencias, agradecimientos y quejas para Almacén PT ---------- */
+  /* ---------- buzón flotante: abrir/cerrar y vistas ---------- */
+  function fbOpen(open){
+    var pop = document.getElementById("fbPop"), fab = document.getElementById("fbFab");
+    pop.hidden = !open; fab.setAttribute("aria-expanded", open ? "true" : "false");
+    if(open){ fbView(canWrite() ? state.fbVista : "enviar"); setTimeout(function(){ var m = document.getElementById("fbMsg"); if(m && !document.getElementById("fbSendView").hidden) m.focus(); }, 50); }
+  }
+  function fbView(v){
+    state.fbVista = v;
+    document.getElementById("fbSendView").hidden = v !== "enviar";
+    document.getElementById("fbInbox").hidden = v !== "recibidos";
+    document.querySelectorAll("#fbView button").forEach(function(x){ x.classList.toggle("active", x.dataset.v === v); });
+  }
+  document.getElementById("fbFab").addEventListener("click", function(){ fbOpen(document.getElementById("fbPop").hidden); });
+  document.getElementById("fbClose").addEventListener("click", function(){ fbOpen(false); });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !document.getElementById("fbPop").hidden) fbOpen(false); });
+  document.getElementById("fbView").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-v]"); if(!b) return;
+    fbView(b.dataset.v);
+  });
+  var FB_LABEL = {sugerencia: "Sugerencia", agradecimiento: "Agradecimiento", queja: "Queja"};
+  var FB_PILL = {sugerencia: "sug", agradecimiento: "agr", queja: "queja"};
+  document.getElementById("fbTipo").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-t]");
+    if(!b) return;
+    state.fbTipo = b.dataset.t;
+    document.querySelectorAll("#fbTipo .chip").forEach(function(x){ x.classList.toggle("active", x === b); });
+  });
+  document.getElementById("fbMsg").addEventListener("input", function(){
+    document.getElementById("fbCount").textContent = this.value.length + " / 1000";
+    document.getElementById("fbOk").hidden = true;
+  });
+  document.getElementById("fbSend").addEventListener("click", function(){
+    var btn = this;
+    var msg = document.getElementById("fbMsg").value.trim();
+    var nombre = document.getElementById("fbNombre").value.trim();
+    if(msg.length < 5){ showToast("Escribe tu mensaje (al menos unas palabras).", true); return; }
+    if(!state.db){ dbMissing(); return; }
+    btn.disabled = true; btn.textContent = "Enviando…";
+    state.db.collection("comentarios").add({
+      tipo: state.fbTipo, mensaje: msg.slice(0, 1000), nombre: nombre.slice(0, 60),
+      usuario: session ? session.name : "", creado_en: new Date().toISOString(), creado_por: state.myId
+    }).then(function(){
+      document.getElementById("fbMsg").value = ""; document.getElementById("fbNombre").value = "";
+      document.getElementById("fbCount").textContent = "0 / 1000";
+      document.getElementById("fbOk").hidden = false;
+    }).catch(function(err){
+      showToast("No se pudo enviar: " + (err && err.message || "intenta de nuevo"), true);
+    }).finally(function(){ btn.disabled = false; btn.textContent = "Enviar mensaje"; });
+  });
+  document.getElementById("fbFiltro").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-f]");
+    if(!b) return;
+    state.fbFiltro = b.dataset.f;
+    document.querySelectorAll("#fbFiltro .chip").forEach(function(x){ x.classList.toggle("active", x === b); });
+    renderBuzon();
+  });
+  function renderBuzon(){
+    var list = document.getElementById("fbList");
+    if(!list || !canWrite()) return;
+    var cnt = {todos: state.comentarios.length, sugerencia: 0, agradecimiento: 0, queja: 0};
+    state.comentarios.forEach(function(c){ if(cnt[c.tipo] != null) cnt[c.tipo]++; });
+    document.querySelectorAll("#fbFiltro .chip").forEach(function(x){
+      var base = {todos: "Todos", sugerencia: "Sugerencias", agradecimiento: "Agradecimientos", queja: "Quejas"}[x.dataset.f];
+      x.textContent = base + " (" + cnt[x.dataset.f] + ")";
+    });
+    var vr = document.getElementById("fbViewRec"); if(vr) vr.textContent = "Recibidos (" + cnt.todos + ")";
+    var items = state.comentarios.filter(function(c){ return state.fbFiltro === "todos" || c.tipo === state.fbFiltro; });
+    if(!items.length){
+      list.innerHTML = '<div class="empty-state">' + (state.comentarios.length ? "No hay mensajes de este tipo." : "Aún no hay mensajes. Cuando alguien escriba, aparecerá aquí.") + '</div>';
+      return;
+    }
+    list.innerHTML = items.map(function(c){
+      var t = FB_LABEL[c.tipo] ? c.tipo : "sugerencia";
+      return '<div class="fb-item"><div class="fb-head"><span class="pill ' + FB_PILL[t] + '">' + esc(FB_LABEL[t]) + '</span>' +
+        '<span>' + esc(c.nombre || "Anónimo") + (c.usuario ? ' · desde ' + esc(c.usuario) : '') + '</span><span>' + fmtDateTime(c.creado_en) + '</span></div>' +
+        '<div class="fb-msg">' + esc(c.mensaje) + '</div></div>';
+    }).join("");
+  }
+
+  /* ---------- registrar: Excel o manual ---------- */
+  document.getElementById("regSeg").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-reg]");
+    if(!b) return;
+    document.querySelectorAll("#regSeg button").forEach(function(x){ x.classList.toggle("active", x === b); });
+    document.getElementById("reg-excel").hidden = b.dataset.reg !== "excel";
+    document.getElementById("reg-manual").hidden = b.dataset.reg !== "manual";
+  });
+
+  /* ---------- buscar: modo ---------- */
+  document.getElementById("searchSeg").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-mode]");
+    if(!b) return;
+    state.searchMode = b.dataset.mode;
+    document.querySelectorAll("#searchSeg button").forEach(function(x){ x.classList.toggle("active", x===b); });
+    var input = document.getElementById("searchInput");
+    input.placeholder = state.searchMode === "codigo" ? "Escribe el código de material…" : "Escribe el número de pedido…";
+    renderSearch();
+  });
+
+  /* ---------- nombres de quienes registran ---------- */
+  function resolveNames(ids, cb){
+    var need = [];
+    ids.forEach(function(id){ if(id && !state.profilesCache[id] && need.indexOf(id) === -1) need.push(id); });
+    if(!need.length || !state.user){ cb(); return; }
+    state.user.profiles(need).then(function(map){
+      Object.keys(map).forEach(function(id){ state.profilesCache[id] = map[id]; });
+      cb();
+    }).catch(function(){ cb(); });
+  }
+  function nameFor(id){
+    if(!id) return "—";
+    var p = state.profilesCache[id];
+    return (p && p.name) || "Compañero/a";
+  }
+
+  /* ---------- render ---------- */
+  function renderAll(){
+    var ids = [];
+    state.records.forEach(function(r){ if(r.creado_por) ids.push(r.creado_por); if(r.surtido_por) ids.push(r.surtido_por); });
+    resolveNames(ids, function(){
+      buildCatalog(); renderStats(); renderRecent(); renderSearch(); renderMap(); renderUbicSelects(); refreshCorte(); renderLlegadas(); renderBuzon();
+    });
+  }
+
+
+  function renderStats(){
+    var activos = state.records.filter(function(r){ return r.estado === "activo"; }).length;
+    var hoy = state.records.filter(function(r){ return isToday(r.creado_en); }).length;
+    document.getElementById("statActivos").textContent = activos;
+    document.getElementById("statHoy").textContent = hoy;
+  }
+
+  function smallBtn(cls, text){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "btn btn-sm " + cls; b.textContent = text;
+    return b;
+  }
+
+  function makeDeleteControl(id, onCancel){
+    var wrap = document.createElement("div");
+    wrap.className = "confirm-row";
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "icon-btn"; btn.title = "Eliminar registro"; btn.setAttribute("aria-label", "Eliminar registro"); btn.textContent = "×";
+    btn.addEventListener("click", function(){
+      wrap.innerHTML = "";
+      var span = document.createElement("span"); span.textContent = "¿Eliminar?";
+      var yes = smallBtn("btn-danger", "Sí"), no = smallBtn("btn-ghost", "No");
+      yes.addEventListener("click", function(){ deleteRecord(id); });
+      no.addEventListener("click", onCancel);
+      wrap.appendChild(span); wrap.appendChild(yes); wrap.appendChild(no);
+    });
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  function renderRecent(){
+    var el = document.getElementById("recentList");
+    var items = state.records.slice(0, 8);
+    if(!items.length){ el.innerHTML = '<p class="hint">Aún no hay registros. Guarda la primera ubicación con el formulario de arriba.</p>'; return; }
+    el.innerHTML = "";
+    items.forEach(function(r){
+      var row = document.createElement("div");
+      row.className = "recent-item";
+      row.innerHTML =
+        '<div class="recent-loc">' + esc(fmtUbic(r.ubicacion)) + '</div>' +
+        '<div class="recent-meta">' +
+          '<div class="recent-code">' + esc(r.codigo) + ' · ' + esc(qtyText(r)) + codeExtra(r.codigo, r.descripcion, r.estandar) + '</div>' +
+          '<div class="recent-sub">Pedido ' + esc(r.pedido) + ' · Lote ' + esc(r.lote) + ' · ' + esc(nameFor(r.creado_por)) + ' · ' + fmtDateTime(r.creado_en) + '</div>' +
+        '</div>';
+      var actions = document.createElement("div");
+      actions.appendChild(makeDeleteControl(r.id, renderRecent));
+      row.appendChild(actions);
+      el.appendChild(row);
+    });
+  }
+
+  function renderSearch(){
+    var el = document.getElementById("searchResults");
+    var q = norm(document.getElementById("searchInput").value);
+    if(!q){ el.innerHTML = ""; return; }
+    var field = state.searchMode === "codigo" ? "codigo" : "pedido";
+    var matches = state.records.filter(function(r){ return r.estado === "activo" && r[field] === q; });
+    if(!matches.length){
+      el.innerHTML = '<div class="empty-state">No hay materiales activos con ese ' + (state.searchMode === "codigo" ? "código" : "pedido") +
+        '. Puede que ya se haya surtido o que aún no se haya acomodado.</div>';
+      return;
+    }
+    el.innerHTML = "";
+    matches.forEach(function(r){
+      var card = document.createElement("div");
+      card.className = "result-card";
+      card.innerHTML =
+        '<div class="result-loc">' + esc(fmtUbic(r.ubicacion)) + '</div>' +
+        '<div class="result-body">' +
+          '<div class="result-code">' + esc(r.codigo) + codeExtra(r.codigo, r.descripcion, r.estandar) + '</div>' +
+          '<div class="result-line">Cantidad ' + esc(qtyText(r)) + ' · Lote ' + esc(r.lote) + ' · Pedido ' + esc(r.pedido) + '</div>' +
+          '<div class="result-line">' + (canWrite() ? 'Acomodado por ' + esc(nameFor(r.creado_por)) + ' · ' : 'Acomodado el ') + fmtDateTime(r.creado_en) + '</div>' +
+        '</div>';
+      if(canWrite()){
+      var acts = document.createElement("div");
+      acts.className = "result-actions";
+      acts.innerHTML = '<button type="button" class="btn btn-success" data-surt="' + escAttr(r.id) + '">Marcar como surtido</button>' +
+        (cajasOf(r) !== 1 ? '<button type="button" class="btn btn-ghost" data-take="' + escAttr(r.id) + '">Sacar cajas</button>' : '');
+      card.appendChild(acts);
+      if(takeOpen === r.id){ var tf = document.createElement("div"); tf.style.flexBasis = "100%"; tf.innerHTML = takeForm(r); card.appendChild(tf); }
+      }
+      el.appendChild(card);
+    });
+  }
+
+  document.getElementById("searchForm").addEventListener("submit", function(e){ e.preventDefault(); renderSearch(); });
+  document.getElementById("searchInput").addEventListener("input", renderSearch);
+
+  /* ---------- mapa del almacén ----------
+     Racks y espacios según el mapeo de Zubex. Los espacios de cada rack se numeran
+     de corrido (1, 2, 3…) y una ubicación como "A5" es el espacio 5 del rack A.
+     En el rack E, los espacios E-100 a E-110 son los de 4 tarimas. */
+  var RACKS = [
+    {name: "A", groups: [{count: 36, tarimas: 2}]},
+    {name: "B", groups: [{count: 60, tarimas: 2}]},
+    {name: "C", groups: [{count: 60, tarimas: 2}]},
+    {name: "D", groups: [{count: 51, tarimas: 2}]},
+    {name: "Calidad", groups: [{count: 3, tarimas: 2}]},
+    {name: "E", groups: [{count: 33, tarimas: 2}, {count: 11, tarimas: 4, start: 100}]},
+    {name: "F", groups: [{count: 12, tarimas: 2}]},
+    {name: "G", groups: [{count: 12, tarimas: 2}]},
+    {name: "Piso", groups: [{count: 75, tarimas: 2}]}
+  ];
+  RACKS.forEach(function(rk){
+    var next = 1;
+    rk.key = rk.name.toUpperCase();
+    rk.spaces = [];
+    rk.byNum = {};
+    rk.groups.forEach(function(g){
+      var start = g.start || next;
+      for(var i = 0; i < g.count; i++){
+        var sp = {num: start + i, tarimas: g.tarimas};
+        rk.spaces.push(sp);
+        rk.byNum[sp.num] = sp;
+      }
+      next = start + g.count;
+    });
+    rk.totalSpaces = rk.spaces.length;
+    rk.totalTarimas = rk.spaces.reduce(function(s, sp){ return s + sp.tarimas; }, 0);
+  });
+  var RACKS_BY_LEN = RACKS.slice().sort(function(a, b){ return b.key.length - a.key.length; });
+  var mapSel = null; // {key, num}
+
+  function pad3(n){ n = String(parseInt(n, 10)); while(n.length < 3) n = "0" + n; return n; }
+  /* Muestra cualquier ubicación guardada con el formato del corte (A5, A05 y A-5 se ven como A-005). */
+  function fmtUbic(u){
+    var p = parseUbicacion(u);
+    return p ? p.rack.key + "-" + pad3(p.num) : norm(u);
+  }
+  function parseUbicacion(u){
+    var s = norm(u);
+    for(var i = 0; i < RACKS_BY_LEN.length; i++){
+      var rk = RACKS_BY_LEN[i];
+      if(s.indexOf(rk.key) !== 0) continue;
+      var rest = s.slice(rk.key.length).replace(/^[\s\-_.\/]+/, "");
+      if(/^[0-9]+$/.test(rest)){
+        var num = parseInt(rest, 10);
+        if(rk.byNum[num]) return {rack: rk, num: num};
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function renderMap(){
+    var occ = {}, outside = [];
+    state.records.forEach(function(r){
+      if(r.estado !== "activo") return;
+      var p = parseUbicacion(r.ubicacion);
+      if(p){ var k = p.rack.key + "|" + p.num; (occ[k] = occ[k] || []).push(r); }
+      else outside.push(r);
+    });
+
+    var total = 0, used = 0;
+    var host = document.getElementById("mapRacks");
+    host.innerHTML = "";
+    RACKS.forEach(function(rk){
+      var usedHere = 0;
+      var cells = rk.spaces.map(function(sp){
+        var isOcc = !!occ[rk.key + "|" + sp.num];
+        if(isOcc) usedHere++;
+        var sel = mapSel && mapSel.key === rk.key && mapSel.num === sp.num;
+        return '<button type="button" class="space' + (isOcc ? " occ" : "") + (sp.tarimas === 4 ? " wide" : "") + (sel ? " sel" : "") +
+          '" data-rack="' + escAttr(rk.key) + '" data-num="' + sp.num + '" aria-label="' + escAttr(rk.name + " " + pad3(sp.num) + (isOcc ? ", ocupado" : ", libre")) + '">' + pad3(sp.num) + '</button>';
+      }).join("");
+      total += rk.totalSpaces; used += usedHere;
+      var pct = rk.totalSpaces ? Math.round(usedHere * 100 / rk.totalSpaces) : 0;
+      var barCls = pct >= 95 ? "bar full" : (pct >= 85 ? "bar warn" : "bar");
+
+      var detail = "";
+      if(mapSel && mapSel.key === rk.key){
+        var recs = occ[rk.key + "|" + mapSel.num] || [];
+        var sp = rk.byNum[mapSel.num];
+        detail = '<div class="space-detail"><div class="space-detail-head"><b>' + esc(ubicLabel(rk, mapSel.num)) + '</b>' +
+          '<div style="display:flex; gap:8px;">' + (canWrite() ? '<button type="button" class="btn btn-primary btn-sm" data-reg-at="1">Registrar aquí</button>' : '') +
+          '<button type="button" class="btn btn-ghost btn-sm" data-close-detail="1">Cerrar</button></div></div>';
+        if(!recs.length){
+          detail += '<div class="line">Espacio libre · capacidad ' + sp.tarimas + ' tarimas.</div>';
+        } else {
+          recs.forEach(function(r){
+            detail += '<div class="line rec"><div><b>' + esc(r.codigo) + '</b>' + codeExtra(r.codigo, r.descripcion, r.estandar) + '<br>' + esc(qtyText(r, true)) + ' · Lote ' + esc(r.lote) +
+              '<br>Pedido ' + esc(r.pedido) + ' · ' + esc(nameFor(r.creado_por)) + ' · ' + fmtDateTime(r.creado_en) + '</div>' +
+              '<div class="rec-actions">' + libControl(r.id, recs.length > 1 ? "Liberar" : "Liberar espacio") + takeBtn(r) + '</div>' + takeForm(r) + '</div>';
+          });
+          if(recs.length > 1 && canWrite()) detail += '<div class="lib-all">' + libControl("ALL", "Liberar todo el espacio") + '</div>';
+          detail += '<div class="line">Capacidad del espacio: ' + sp.tarimas + ' tarimas.</div>';
+        }
+        detail += '</div>';
+      }
+
+      var card = document.createElement("div");
+      card.className = "rack-card";
+      card.innerHTML =
+        '<div class="rack-head"><div class="rack-name">' + (rk.key.length > 1 ? "" : "Rack ") + esc(rk.name) + '</div>' +
+          '<div class="rack-meta"><b>' + usedHere + '</b> de ' + rk.totalSpaces + ' espacios ocupados · <b>' + (rk.totalSpaces - usedHere) +
+          '</b> libres · ' + rk.totalTarimas + ' tarimas</div></div>' +
+        '<div class="' + barCls + '" role="img" aria-label="' + pct + '% ocupado"><span style="width:' + pct + '%"></span></div>' +
+        '<div class="space-grid">' + cells + '</div>' + detail;
+      host.appendChild(card);
+    });
+
+    var totalTarimas = RACKS.reduce(function(s, rk){ return s + rk.totalTarimas; }, 0);
+    document.getElementById("mapTotal").textContent = total;
+    document.getElementById("mapOcc").textContent = used;
+    document.getElementById("mapFree").textContent = total - used;
+    document.getElementById("mapPct").textContent = (total ? Math.round(used * 100 / total) : 0) + "%";
+    document.getElementById("mapTarTotal").textContent = totalTarimas.toLocaleString("es-MX");
+    document.getElementById("mapCapacity").textContent = "Capacidad total del almacén: " + totalTarimas.toLocaleString("es-MX") + " tarimas en " + total + " espacios.";
+
+    var out = document.getElementById("mapOutside");
+    if(!outside.length){ out.innerHTML = ""; return; }
+    var byUb = {};
+    outside.forEach(function(r){ var k = fmtUbic(r.ubicacion) || "(vacía)"; (byUb[k] = byUb[k] || []).push(r); });
+    var rows = Object.keys(byUb).sort().map(function(k){
+      return '<div class="recent-item"><div class="recent-loc">' + esc(k) + '</div><div class="recent-meta">' +
+        byUb[k].map(function(r){ return esc(r.codigo) + ' · ' + esc(qtyText(r)) + codeExtra(r.codigo, r.descripcion, r.estandar); }).join('<br>') + '</div></div>';
+    }).join("");
+    out.innerHTML = '<div class="card stack"><h2>Ubicaciones fuera del mapa</h2>' +
+      '<p class="hint">Estos registros activos tienen una ubicación que no coincide con ningún espacio del Lay Out. Puede ser un error de captura, como un rack o un número que no existe.</p>' + rows + '</div>';
+  }
+  /* Liberar = marcar como surtido (el espacio vuelve a quedar disponible). Pide confirmación en línea. */
+  var libConfirm = null; // id de registro, "ALL" o null
+
+  /* Sacar cajas: salida parcial. El material sigue en el espacio (lo ocupa) hasta que salgan todas las cajas. */
+  var takeOpen = null, takeVal = "", takeTot = "";
+  function cajasOf(r){ var n = Number(r.cajas); return n > 0 ? n : 0; }
+  function takeBtn(r){
+    if(!canWrite()) return "";
+    if(cajasOf(r) === 1) return "";
+    return '<button type="button" class="btn btn-ghost btn-sm" data-take="' + escAttr(r.id) + '">Sacar cajas</button>';
+  }
+  function takeTotal(r){ return cajasOf(r) || parseInt(takeTot, 10) || 0; }
+  function takeMsg(r, n){
+    var c = takeTotal(r);
+    if(!cajasOf(r) && !(c >= 2)) return "Escribe cuántas cajas tiene el pallet.";
+    if(!(n >= 1)) return "Escribe cuántas cajas salen.";
+    if(n % 1) return "Usa un número entero de cajas.";
+    if(n > c) return "Solo hay " + fmtQty(c) + " cajas en este espacio.";
+    if(n === c) return "Son todas las cajas: el espacio se libera.";
+    return "Quedarán " + fmtQty(c - n) + " cajas y el espacio sigue ocupado.";
+  }
+  function takeMsgOk(m){ return m.indexOf("Quedarán") === 0 || m.indexOf("Son todas") === 0; }
+  function takeForm(r){
+    if(!canWrite() || takeOpen !== r.id) return "";
+    var n = parseFloat(takeVal), m = takeMsg(r, n), known = cajasOf(r) > 0;
+    return '<div class="take-form">' +
+      (known ? '' : '<label for="takeTot">Cajas que tenía el pallet</label><input id="takeTot" type="number" inputmode="numeric" min="2" step="1" value="' + escAttr(takeTot) + '" autocomplete="off">') +
+      '<label for="takeN">Cajas que salen' + (known ? ' (hay ' + esc(fmtQty(cajasOf(r))) + ')' : '') + '</label>' +
+      '<input id="takeN" type="number" inputmode="numeric" min="1" step="1" value="' + escAttr(takeVal) + '" autocomplete="off">' +
+      '<button type="button" class="btn btn-success btn-sm" data-take-yes="' + escAttr(r.id) + '">Confirmar</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-take-no="1">Cancelar</button>' +
+      '<div class="take-msg' + ((takeVal !== "" && !takeMsgOk(m)) ? " warn" : "") + '" id="takeMsg">' + esc(m) + '</div></div>';
+  }
+  function rerenderTake(){
+    var hadId = document.activeElement && (document.activeElement.id === "takeN" || document.activeElement.id === "takeTot") ? document.activeElement.id : null;
+    renderMap(); renderSearch();
+    if(hadId){ var el = document.getElementById(hadId); if(el) el.focus(); }
+  }
+  function confirmTake(id, btn){
+    if(!canWrite()){ denyWrite(); return; }
+    if(!state.db){ dbMissing(); return; }
+    var r = state.records.filter(function(x){ return x.id === id; })[0];
+    var inp = document.getElementById("takeN");
+    if(!r || !inp) return;
+    takeVal = inp.value;
+    var tIn = document.getElementById("takeTot"); if(tIn) takeTot = tIn.value;
+    var n = parseFloat(inp.value), c = takeTotal(r);
+    if(!(c >= 2) || !(n >= 1) || n % 1 || n > c){ showToast(takeMsg(r, n), true); return; }
+    var nowIso = new Date().toISOString();
+    var salidas = (Array.isArray(r.salidas) ? r.salidas : []).concat([{cajas: n, en: nowIso, por: state.myId}]);
+    var upd;
+    if(n === c){
+      upd = {estado: "surtido", surtido_en: nowIso, surtido_por: state.myId, salidas: salidas};
+    } else {
+      var f = (c - n) / c, rnd = function(v){ return Math.round(v * 10000) / 10000; };
+      upd = {cajas: c - n, cajas_ini: cajasOf(r) ? (r.cajas_ini || c) : c, cantidad: rnd(Number(r.cantidad) * f), salidas: salidas};
+      if(Number(r.mts) > 0) upd.mts = rnd(Number(r.mts) * f);
+    }
+    btn.disabled = true; btn.textContent = "Guardando…";
+    state.db.collection("registros").doc(id).update(upd).then(function(){
+      takeOpen = null; takeVal = ""; takeTot = "";
+      showToast(n === c ? "Salieron todas las cajas: espacio liberado." : "Salieron " + fmtQty(n) + " cajas; quedan " + fmtQty(c - n) + ". El espacio sigue ocupado.");
+      rerenderTake();
+    }).catch(function(err){
+      showToast("No se pudo guardar: " + (err && err.message || "intenta de nuevo"), true);
+      btn.disabled = false; btn.textContent = "Confirmar";
+    });
+  }
+  document.addEventListener("click", function(e){
+    var t = e.target.closest("[data-take]");
+    if(t){ takeOpen = (takeOpen === t.dataset.take) ? null : t.dataset.take; takeVal = ""; takeTot = ""; libConfirm = null; rerenderTake(); var i = document.getElementById("takeTot") || document.getElementById("takeN"); if(i) i.focus(); return; }
+    if(e.target.closest("[data-take-no]")){ takeOpen = null; takeVal = ""; takeTot = ""; rerenderTake(); return; }
+    var y = e.target.closest("[data-take-yes]");
+    if(y){ confirmTake(y.dataset.takeYes, y); return; }
+    var sb = e.target.closest("[data-surt]");
+    if(sb){ marcarSurtido(sb.dataset.surt, sb); }
+  });
+  document.addEventListener("input", function(e){
+    if(!e.target || (e.target.id !== "takeN" && e.target.id !== "takeTot")) return;
+    if(e.target.id === "takeN") takeVal = e.target.value; else takeTot = e.target.value;
+    var r = state.records.filter(function(x){ return x.id === takeOpen; })[0];
+    var msg = document.getElementById("takeMsg");
+    if(r && msg){
+      var m = takeMsg(r, parseFloat(takeVal));
+      msg.textContent = m;
+      msg.className = "take-msg" + ((takeVal !== "" && !takeMsgOk(m)) ? " warn" : "");
+    }
+  });
+  function libControl(id, label){
+    if(!canWrite()) return "";
+    if(libConfirm === id){
+      return '<span class="confirm-row"><span>' + (id === "ALL" ? "¿Liberar todo?" : "¿Liberar?") + '</span>' +
+        '<button type="button" class="btn btn-success btn-sm" data-lib-yes="' + escAttr(id) + '">Sí</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-lib-no="1">No</button></span>';
+    }
+    return '<button type="button" class="btn btn-success btn-sm" data-lib="' + escAttr(id) + '">' + esc(label) + '</button>';
+  }
+  function liberar(id, btn){
+    if(!canWrite()){ denyWrite(); return; }
+    if(!state.db){ dbMissing(); return; }
+    var ids = id === "ALL" ? (occupiedAt(mapSel) || []).map(function(r){ return r.id; }) : [id];
+    if(!ids.length){ libConfirm = null; renderMap(); return; }
+    btn.disabled = true; btn.textContent = "Liberando…";
+    var when = new Date().toISOString();
+    Promise.all(ids.map(function(rid){
+      return state.db.collection("registros").doc(rid).update({estado: "surtido", surtido_en: when, surtido_por: state.myId});
+    })).then(function(){
+      showToast(ids.length > 1 ? "Espacio liberado (" + ids.length + " partidas)." : "Listo, se liberó el material.");
+    }).catch(function(err){
+      showToast("No se pudo liberar: " + (err && err.message || "intenta de nuevo"), true);
+    }).finally(function(){ libConfirm = null; renderMap(); });
+  }
+  function occupiedAt(sel){
+    if(!sel) return [];
+    return state.records.filter(function(r){
+      if(r.estado !== "activo") return false;
+      var p = parseUbicacion(r.ubicacion);
+      return p && p.rack.key === sel.key && p.num === sel.num;
+    });
+  }
+  /* Catálogo de códigos: descripción y estándar por caja (pzas por caja). Sale de lo ya guardado en Cortes y Registros;
+     el estándar capturado a mano manda, y si no hay, se calcula con pzas ÷ cajas. */
+  var catalog = {};
+  function stdFrom(pzas, cajas){
+    pzas = Number(pzas); cajas = Number(cajas);
+    if(!(pzas > 0) || !(cajas > 0)) return null;
+    var v = pzas / cajas, r = Math.round(v);
+    return Math.abs(v - r) < 0.05 ? r : Math.round(v * 10) / 10;
+  }
+  function buildCatalog(){
+    var c = {};
+    function slot(code){ code = norm(code); return code ? (c[code] = c[code] || {desc: "", std: null, stdRank: 0}) : null; }
+    function put(code, desc, std, rank){
+      var e = slot(code); if(!e) return;
+      if(desc && !e.desc) e.desc = String(desc).trim();
+      if(std > 0 && rank > e.stdRank){ e.std = Number(std); e.stdRank = rank; }
+    }
+    state.llegadas.forEach(function(L){ put(L.codigo, L.descripcion, Number(L.estandar) > 0 ? L.estandar : stdFrom(L.pzas, L.cajas), Number(L.estandar) > 0 ? 3 : 1); });
+    state.records.forEach(function(r){
+      var piezas = !(Number(r.mts) > 0 && Number(r.mts) === Number(r.cantidad));
+      put(r.codigo, r.descripcion, Number(r.estandar) > 0 ? r.estandar : (piezas ? stdFrom(r.cantidad, r.cajas) : null), Number(r.estandar) > 0 ? 4 : 2);
+    });
+    catalog = c;
+  }
+  function codeInfo(code){ return catalog[norm(code)] || {desc: "", std: null}; }
+  /* Descripción y estándar bajo un código, para mostrarlos donde aparezca. */
+  function codeExtra(code, desc, std){
+    var i = codeInfo(code);
+    desc = desc || i.desc; std = Number(std) > 0 ? Number(std) : i.std;
+    return (desc ? '<span class="code-desc">' + esc(desc) + '</span>' : '') +
+      (std ? '<span class="code-std">Estándar caja: ' + esc(fmtQty(std)) + ' pzas</span>' : '');
+  }
+  function qtyText(r, withUnit){
+    var t = qtyBase(r, withUnit);
+    var c = Number(r.cajas);
+    return c > 0 ? t + " · " + fmtQty(c) + (c === 1 ? " caja" : " cajas") : t;
+  }
+  function qtyBase(r, withUnit){
+    if(Number(r.mts) > 0 && Number(r.mts) === Number(r.cantidad)) return fmtQty(Number(r.mts)) + " m";
+    var t = fmtQty(Number(r.cantidad)) + (withUnit ? " pzas" : "");
+    if(Number(r.mts) > 0) t += " · " + fmtQty(Number(r.mts)) + " m";
+    return t;
+  }
+  function fmtQty(n){
+    if(n == null || isNaN(n)) return "—";
+    return Number(n).toLocaleString("es-MX", {maximumFractionDigits: 3});
+  }
+  document.getElementById("mapRacks").addEventListener("click", function(e){
+    if(e.target.closest("[data-close-detail]")){ mapSel = null; libConfirm = null; renderMap(); return; }
+    if(e.target.closest("[data-reg-at]")){ if(mapSel) registerAt(mapSel.key, mapSel.num); return; }
+    var lb = e.target.closest("[data-lib]");
+    if(lb){ libConfirm = lb.dataset.lib; renderMap(); return; }
+    if(e.target.closest("[data-lib-no]")){ libConfirm = null; renderMap(); return; }
+    var ly = e.target.closest("[data-lib-yes]");
+    if(ly){ liberar(ly.dataset.libYes, ly); return; }
+    var b = e.target.closest("button.space");
+    if(!b) return;
+    var key = b.dataset.rack, num = parseInt(b.dataset.num, 10);
+    libConfirm = null;
+    mapSel = (mapSel && mapSel.key === key && mapSel.num === num) ? null : {key: key, num: num};
+    renderMap();
+  });
+
+  /* ---------- registrar: ubicación por lista (rack + espacio) ---------- */
+  function ubicLabel(rk, num){ return rk.key + "-" + pad3(num); }
+  function occupiedSpaces(){
+    var occ = {};
+    state.records.forEach(function(r){
+      if(r.estado !== "activo") return;
+      var p = parseUbicacion(r.ubicacion);
+      if(p){ var k = p.rack.key + "|" + p.num; (occ[k] = occ[k] || []).push(r); }
+    });
+    return occ;
+  }
+  function currentRack(){
+    var v = document.getElementById("f-rack").value;
+    return RACKS.filter(function(k){ return k.key === v; })[0] || null;
+  }
+  function renderUbicSelects(){
+    var rackSel = document.getElementById("f-rack");
+    var keepRack = rackSel.value, keepSp = document.getElementById("f-espacio").value;
+    var occ = occupiedSpaces();
+    rackSel.innerHTML = '<option value="">Elige el rack…</option>' + RACKS.map(function(rk){
+      var used = rk.spaces.filter(function(sp){ return occ[rk.key + "|" + sp.num]; }).length;
+      return '<option value="' + escAttr(rk.key) + '">' + esc((rk.key.length > 1 ? "" : "Rack ") + rk.name) +
+        ' · ' + (rk.totalSpaces - used) + ' disponibles</option>';
+    }).join("");
+    rackSel.value = keepRack;
+    fillEspacios(keepSp, occ);
+  }
+  function fillEspacios(keep, occ){
+    var spSel = document.getElementById("f-espacio");
+    var rk = currentRack();
+    if(!rk){
+      spSel.innerHTML = '<option value="">Primero elige el rack</option>';
+      spSel.disabled = true;
+      updateUbicHint(occ);
+      return;
+    }
+    var available = rk.spaces.filter(function(sp){ return !occ[rk.key + "|" + sp.num]; });
+    if(!available.length){
+      spSel.innerHTML = '<option value="">Sin espacios disponibles</option>';
+      spSel.disabled = true;
+      updateUbicHint(occ);
+      return;
+    }
+    spSel.disabled = false;
+    spSel.innerHTML = '<option value="">Elige el espacio…</option>' + available.map(function(sp){
+      return '<option value="' + sp.num + '">' + pad3(sp.num) + (sp.tarimas === 4 ? ' · 4 tarimas' : '') + '</option>';
+    }).join("");
+    spSel.value = keep;
+    updateUbicHint(occ);
+  }
+  function updateUbicHint(occ){
+    var hint = document.getElementById("ubicHint");
+    var rk = currentRack();
+    var num = parseInt(document.getElementById("f-espacio").value, 10);
+    if(!rk || !num){ hint.textContent = ""; hint.className = "field-hint full"; return; }
+    var recs = (occ || occupiedSpaces())[rk.key + "|" + num] || [];
+    var sp = rk.byNum[num];
+    if(recs.length){
+      hint.className = "field-hint full warn";
+      hint.textContent = "Este espacio ya tiene material: " + recs.slice(0, 3).map(function(r){ return r.codigo; }).join(", ") +
+        (recs.length > 3 ? " y " + (recs.length - 3) + " más" : "") + ". Puedes guardar aquí de todos modos.";
+    } else {
+      hint.className = "field-hint full ok";
+      hint.textContent = "Espacio disponible · capacidad " + sp.tarimas + " tarimas.";
+    }
+  }
+  document.getElementById("f-rack").addEventListener("change", function(){ fillEspacios("", occupiedSpaces()); });
+  document.getElementById("f-espacio").addEventListener("change", function(){ updateUbicHint(); });
+
+  /* ---------- registrar un corte (pegado desde Excel) ---------- */
+  var corte = {rows: [], llegSaved: {}};
+
+  /* ---------- llegadas: lo que trae el corte, para comercial ---------- */
+  function llKey(pedido, codigo, lote){ return [norm(pedido), norm(codigo), norm(lote)].join("|"); }
+  function llId(key){ return key.replace(/[^A-Z0-9_-]+/g, "_"); }
+  function corteNewLlegadas(){
+    var map = {}, list = [];
+    corte.rows.forEach(function(row){
+      if(row.invalid) return;
+      var key = llKey(row.pedido, row.codigo, row.lote);
+      if(state.llegMap[key] || corte.llegSaved[key]) return;
+      var it = map[key];
+      if(!it){
+        it = map[key] = {key: key, id: llId(key), pedido: row.pedido, codigo: row.codigo, descripcion: row.desc, cliente: row.cliente,
+          lote: row.lote, pzas: null, mts: null, cajas: null, fecha_entrega: row.fent, estandar: row.std > 0 ? row.std : null};
+        list.push(it);
+      }
+      if(row.pzas != null) it.pzas = (it.pzas || 0) + row.pzas;
+      if(row.mts != null) it.mts = (it.mts || 0) + row.mts;
+      if(row.cajas > 0) it.cajas = (it.cajas || 0) + row.cajas;
+    });
+    return list;
+  }
+
+  function parseTSV(text){
+    var rows = [], row = [], cell = "", inQ = false;
+    for(var i = 0; i < text.length; i++){
+      var ch = text.charAt(i);
+      if(inQ){
+        if(ch === '"'){
+          if(text.charAt(i + 1) === '"'){ cell += '"'; i++; } else { inQ = false; }
+        } else { cell += ch; }
+      } else if(ch === '"' && cell === ""){ inQ = true; }
+      else if(ch === "\t"){ row.push(cell); cell = ""; }
+      else if(ch === "\n"){ row.push(cell); rows.push(row); row = []; cell = ""; }
+      else if(ch !== "\r"){ cell += ch; }
+    }
+    if(cell !== "" || row.length){ row.push(cell); rows.push(row); }
+    return rows;
+  }
+  function cleanHeader(h){ return normalizeHeader(h).replace(/\s+/g, " "); }
+  function parseNum(v){
+    var n = parseFloat(String(v == null ? "" : v).replace(/[\s,$]/g, ""));
+    return isNaN(n) ? null : n;
+  }
+  function rackByKey(k){ return RACKS.filter(function(r){ return r.key === k; })[0] || null; }
+  function hasUbic(row){ return !!(row.rackKey && row.num); }
+  function rowUbic(row){ var rk = rackByKey(row.rackKey); return (rk && row.num) ? ubicLabel(rk, row.num) : ""; }
+  function takenByCorte(exceptIdx){
+    var t = {};
+    corte.rows.forEach(function(row, i){
+      if(i !== exceptIdx && row.include && !row.invalid && !row.saved && hasUbic(row)) t[row.rackKey + "|" + row.num] = true;
+    });
+    return t;
+  }
+
+  function readCorte(){
+    var out = document.getElementById("corteResult");
+    var text = document.getElementById("corteText").value;
+    corte.rows = []; corte.llegSaved = {};
+    if(!text.trim()){ out.innerHTML = '<div class="empty-state">Pega el corte copiado de Excel y presiona Leer corte.</div>'; return; }
+    var table = parseTSV(text);
+    var hdrIdx = -1, cols = null, h;
+    for(var i = 0; i < Math.min(table.length, 20); i++){
+      h = table[i].map(cleanHeader);
+      var cp = findColIndex(h, ["PEDIDO"], ["PEDIDO"]), cc = findColIndex(h, ["CODIGO"], ["CODIGO"]);
+      if(cp !== -1 && cc !== -1){ hdrIdx = i; cols = {pedido: cp, codigo: cc}; break; }
+    }
+    if(hdrIdx === -1){
+      out.innerHTML = '<div class="empty-state">No encontré las columnas Pedido y Código. Al copiar de Excel incluye la fila de títulos de la tabla.</div>';
+      return;
+    }
+    h = table[hdrIdx].map(cleanHeader);
+    cols.lote = findColIndex(h, ["LOTE"], ["LOTE"]);
+    cols.pzas = findColIndex(h, ["PZAS", "PIEZAS"], ["PZA"]);
+    cols.mts = findColIndex(h, ["MTS", "METROS"], ["MTS"]);
+    cols.ubic = findColIndex(h, ["UBICACION"], ["UBICACION"]);
+    cols.desc = findColIndex(h, ["DESCRIPCION"], ["DESCRIPCION"]);
+    cols.cliente = findColIndex(h, ["CLIENTE"], ["CLIENTE"]);
+    cols.cajas = findColIndex(h, ["CAJAS"], ["CAJAS"]);
+    cols.std = findColIndex(h, ["ESTANDAR CAJA", "ESTANDAR", "STD CAJA", "STD", "PZAS POR CAJA", "PZAS X CAJA", "PZAS/CAJA", "PIEZAS POR CAJA"], ["ESTANDAR"]);
+    if(cols.std === -1) cols.std = findColIndex(h, ["PZAS POR CAJA"], ["CAJA", "POR"]);
+    if(cols.cajas !== -1 && /DESCR/.test(h[cols.cajas])) cols.cajas = -1;
+    cols.fent = findColIndex(h, ["FECHA ENTREGA CEDIS", "FECHA ENTREGA"], ["FECHA", "ENTREGA"]);
+    if(cols.lote === -1 || (cols.pzas === -1 && cols.mts === -1)){
+      out.innerHTML = '<div class="empty-state">Faltan columnas en lo que pegaste: necesito Lote y al menos Pzas o Mts. Copia la tabla completa con sus títulos.</div>';
+      return;
+    }
+
+    for(var r = hdrIdx + 1; r < table.length; r++){
+      var c = table[r];
+      var pedido = norm(c[cols.pedido]), codigo = norm(c[cols.codigo]);
+      if(!pedido || !codigo) continue;
+      var pzas = cols.pzas !== -1 ? parseNum(c[cols.pzas]) : null;
+      var mts = cols.mts !== -1 ? parseNum(c[cols.mts]) : null;
+      var row = {
+        pedido: pedido, codigo: codigo,
+        desc: cols.desc !== -1 ? String(c[cols.desc] || "").trim().slice(0, 60) : "",
+        cliente: cols.cliente !== -1 ? String(c[cols.cliente] || "").trim().slice(0, 60) : "",
+        fent: cols.fent !== -1 ? String(c[cols.fent] || "").trim().slice(0, 20) : "",
+        lote: norm(c[cols.lote]), pzas: pzas, mts: mts,
+        cajas: cols.cajas !== -1 ? parseNum(c[cols.cajas]) : null,
+        std: cols.std !== -1 ? parseNum(c[cols.std]) : null,
+        cantidad: pzas > 0 ? pzas : (mts > 0 ? mts : null),
+        ubicOrig: cols.ubic !== -1 ? norm(c[cols.ubic]) : "",
+        include: true, invalid: false, saved: false, saving: false, note: "", dupUbic: "", rackKey: "", num: ""
+      };
+      if(!(row.std > 0)) row.std = stdFrom(row.pzas, row.cajas);
+      if(!row.lote){ row.invalid = true; row.include = false; row.note = "Falta el lote"; }
+      else if(!(row.cantidad > 0)){ row.invalid = true; row.include = false; row.note = "Falta la cantidad (Pzas o Mts)"; }
+      else {
+        var dup = state.records.filter(function(x){ return x.estado === "activo" && x.pedido === pedido && x.codigo === codigo && norm(x.lote) === row.lote; })[0];
+        if(dup){ row.include = false; row.dupUbic = fmtUbic(dup.ubicacion); row.note = "Ya registrado en " + row.dupUbic; }
+      }
+      corte.rows.push(row);
+    }
+    if(!corte.rows.length){
+      out.innerHTML = '<div class="empty-state">No encontré partidas con Pedido y Código debajo de los títulos.</div>';
+      return;
+    }
+
+    // ubicación que ya trae el corte: se respeta si existe en el Lay Out (varias partidas pueden compartir espacio)
+    corte.rows.forEach(function(row){
+      if(!row.include || !row.ubicOrig) return;
+      var p = parseUbicacion(row.ubicOrig);
+      if(!p){ row.note = 'La ubicación "' + row.ubicOrig + '" del corte no existe en el mapa. Elige otra.'; return; }
+      row.rackKey = p.rack.key; row.num = String(p.num);
+    });
+    buildCorteView();
+    refreshCorte();
+  }
+
+  function buildCorteView(){
+    var out = document.getElementById("corteResult");
+    out.innerHTML = '<div class="card stack"><h2>Partidas del corte</h2>' +
+      '<div class="corte-summary" id="corteSummary"></div>' +
+      '<p class="hint">Elige la ubicación de las partidas que ya acomodaste; las que dejes en "Sin ubicación" solo se guardan en el resumen de Cortes. Los espacios que ya tienen material aparecen al final de la lista, por si varias partidas comparten espacio. Las partidas que ya estaban registradas vienen desmarcadas; márcalas si quieres registrar otra tarima.</p>' +
+      '<div class="table-wrap"><table class="corte-table"><thead><tr><th></th><th>Pedido</th><th>Código</th><th>Descripción</th><th>Lote</th><th>Cajas</th><th>Est. caja</th><th>Pzas</th><th>Mts</th><th>Ubicación</th><th>Estado</th></tr></thead><tbody id="corteBody"></tbody></table></div>' +
+      '<div class="corte-actions"><button type="button" class="btn btn-primary" id="corteSave">Guardar</button>' +
+      '<button type="button" class="btn btn-ghost" id="corteCopy">Copiar columna Ubicación</button></div>' +
+      '<p class="hint" id="corteHint"></p><div id="corteCopyBox"></div></div>';
+    var body = document.getElementById("corteBody");
+    var rackHtml = '<option value="">Sin ubicación</option>' + RACKS.map(function(rk){ return '<option value="' + escAttr(rk.key) + '">' + esc(rk.name) + '</option>'; }).join("");
+    corte.rows.forEach(function(row){
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td><input type="checkbox" aria-label="Registrar esta partida"></td>' +
+        '<td class="mono">' + esc(row.pedido) + '</td>' +
+        '<td class="mono">' + esc(row.codigo) + '</td>' +
+        '<td class="desc" title="' + escAttr(row.desc) + '">' + esc(row.desc) + '</td>' +
+        '<td class="mono">' + esc(row.lote || "—") + '</td>' +
+        '<td class="num">' + (row.cajas > 0 ? esc(fmtQty(row.cajas)) : "—") + '</td>' +
+        '<td class="num">' + (row.std > 0 ? esc(fmtQty(row.std)) : "—") + '</td>' +
+        '<td class="num">' + (row.pzas == null ? "—" : esc(fmtQty(row.pzas))) + '</td>' +
+        '<td class="num">' + (row.mts == null ? "—" : esc(fmtQty(row.mts))) + '</td>' +
+        '<td><div class="cut-ubic"><select class="cut-sel" aria-label="Rack"></select><select class="cut-sel" aria-label="Espacio"></select></div></td>' +
+        '<td class="cut-note"></td>';
+      var sels = tr.querySelectorAll("select");
+      row.tr = tr; row.cb = tr.querySelector("input"); row.rackSel = sels[0]; row.espSel = sels[1]; row.stEl = tr.querySelector(".cut-note");
+      row.rackSel.innerHTML = rackHtml; row.rackSel._sig = rackHtml;
+      row.cb.addEventListener("change", function(){ row.include = row.cb.checked; refreshCorte(); });
+      row.rackSel.addEventListener("change", function(){ row.rackKey = row.rackSel.value; row.num = ""; refreshCorte(); });
+      row.espSel.addEventListener("change", function(){ row.num = row.espSel.value; refreshCorte(); });
+      body.appendChild(tr);
+    });
+    document.getElementById("corteSave").addEventListener("click", saveCorte);
+    document.getElementById("corteCopy").addEventListener("click", copyCorteUbic);
+  }
+
+  function setSelect(sel, html, value){
+    if(sel._sig !== html){ sel.innerHTML = html; sel._sig = html; }
+    sel.value = value;
+  }
+
+  function refreshCorte(){
+    if(!corte.rows.length || !document.getElementById("corteBody")) return;
+    var occ = occupiedSpaces();
+    var nInc = 0, nReady = 0, nSaved = 0, nOff = 0;
+    corte.rows.forEach(function(row, i){
+      var taken = takenByCorte(i);
+      var rk = rackByKey(row.rackKey);
+      var espHtml;
+      if(!rk){ espHtml = '<option value="">—</option>'; }
+      else {
+        var free = [], shared = [];
+        rk.spaces.forEach(function(sp){
+          var k = rk.key + "|" + sp.num;
+          (occ[k] || taken[k] ? shared : free).push(sp);
+        });
+        var opt = function(sp){ return '<option value="' + sp.num + '">' + pad3(sp.num) + (sp.tarimas === 4 ? " · 4 tarimas" : "") + '</option>'; };
+        espHtml = '<option value="">Espacio…</option>' +
+          (free.length ? '<optgroup label="Disponibles">' + free.map(opt).join("") + '</optgroup>' : '') +
+          (shared.length ? '<optgroup label="Ya con material">' + shared.map(opt).join("") + '</optgroup>' : '');
+      }
+      var locked = row.invalid || row.saved || row.saving || !row.include;
+      row.tr.className = row.include ? "" : "off";
+      row.cb.checked = row.include;
+      row.cb.disabled = row.invalid || row.saved || row.saving;
+      row.rackSel.value = row.rackKey;
+      setSelect(row.espSel, espHtml, row.num);
+      row.rackSel.disabled = locked;
+      row.espSel.disabled = locked || !rk;
+      var st, cls;
+      if(row.saved){ st = row.note; cls = "ok"; nSaved++; }
+      else if(row.invalid){ st = row.note; cls = "bad"; nOff++; }
+      else if(!row.include){ st = row.note || "Omitida"; cls = "muted"; nOff++; }
+      else if(!hasUbic(row)){ st = row.note || "Sin ubicación"; cls = "warn"; nInc++; }
+      else {
+        var key = row.rackKey + "|" + row.num, codes = [];
+        (occ[key] || []).forEach(function(r){ if(codes.indexOf(r.codigo) === -1) codes.push(r.codigo); });
+        corte.rows.forEach(function(o){
+          if(o !== row && o.include && !o.invalid && !o.saved && o.rackKey === row.rackKey && o.num === row.num && codes.indexOf(o.codigo) === -1) codes.push(o.codigo);
+        });
+        st = codes.length ? "Lista · comparte con " + codes.slice(0, 2).join(", ") + (codes.length > 2 ? " y " + (codes.length - 2) + " más" : "") : "Lista";
+        cls = "ok"; nInc++; nReady++;
+      }
+      row.stEl.textContent = st; row.stEl.className = "cut-note " + cls;
+    });
+    var nSin = nInc - nReady;
+    var nLleg = corteNewLlegadas().length;
+    document.getElementById("corteSummary").innerHTML =
+      '<span><b>' + corte.rows.length + '</b> partidas leídas</span>' +
+      '<span><b>' + nLleg + '</b> nuevas para el resumen de Cortes</span>' +
+      '<span><b>' + nReady + '</b> listas para guardar</span>' +
+      (nSin ? '<span style="color:var(--warn)"><b>' + nSin + '</b> sin ubicación</span>' : '') +
+      (nSaved ? '<span><b>' + nSaved + '</b> guardadas</span>' : '') +
+      (nOff ? '<span><b>' + nOff + '</b> omitidas</span>' : '');
+    var btn = document.getElementById("corteSave");
+    var busy = corte.rows.some(function(row){ return row.saving; });
+    btn.disabled = busy || !(nReady || nLleg);
+    btn.textContent = busy ? "Guardando…" : ((nReady || nLleg) ? "Guardar corte" : "Nada por guardar");
+    document.getElementById("corteHint").textContent = nSin
+      ? "Las " + nSin + " partidas sin ubicación quedan solo en el resumen de Cortes; su ubicación se guarda cuando les pongas lugar y pegues el corte otra vez (las ya guardadas vienen desmarcadas)."
+      : "";
+  }
+
+  function runChunks(items, fn){
+    var idx = 0;
+    function next(){
+      var batch = items.slice(idx, idx + 6);
+      idx += 6;
+      if(!batch.length) return Promise.resolve();
+      return Promise.all(batch.map(fn)).then(next);
+    }
+    return next();
+  }
+  function saveCorte(){
+    if(!canWrite()){ denyWrite(); return; }
+    if(!state.db){ dbMissing(); return; }
+    var todo = corte.rows.filter(function(row){ return row.include && !row.invalid && !row.saved && hasUbic(row); });
+    var todoL = corteNewLlegadas();
+    if(!todo.length && !todoL.length) return;
+    todo.forEach(function(row){ row.saving = true; row.pending = rowUbic(row); });
+    todoL.forEach(function(it){ corte.llegSaved[it.key] = "saving"; });
+    refreshCorte();
+    var ok = 0, fail = 0, okL = 0, failL = 0;
+    var nowIso = new Date().toISOString(), d = new Date();
+    var corteFecha = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    runChunks(todoL, function(it){
+      var doc = {
+        pedido: it.pedido, codigo: it.codigo, descripcion: it.descripcion, cliente: it.cliente, lote: it.lote,
+        pzas: it.pzas, mts: it.mts, cajas: it.cajas, estandar: it.estandar, fecha_entrega: it.fecha_entrega, estado: "pendiente",
+        corte_fecha: corteFecha, creado_en: nowIso, creado_por: state.myId
+      };
+      return state.db.collection("llegadas").doc(it.id).set(doc).then(function(){
+        corte.llegSaved[it.key] = "ok"; okL++;
+      }).catch(function(){
+        delete corte.llegSaved[it.key]; failL++;
+      });
+    }).then(function(){
+      return runChunks(todo, function(row){
+        var rec = {
+          pedido: row.pedido, codigo: row.codigo, cantidad: row.cantidad, lote: row.lote, ubicacion: row.pending,
+          estado: "activo", creado_en: new Date().toISOString(), creado_por: state.myId, origen: "corte"
+        };
+        if(row.mts > 0) rec.mts = row.mts;
+        if(row.cajas > 0) rec.cajas = row.cajas;
+        if(row.desc) rec.descripcion = row.desc;
+        if(row.std > 0) rec.estandar = row.std;
+        return state.db.collection("registros").add(rec).then(function(){
+          row.saved = true; row.include = false; row.note = "Guardado en " + row.pending; ok++;
+        }).catch(function(err){
+          row.note = "No se pudo guardar: " + ((err && err.message) || "intenta de nuevo"); fail++;
+        }).finally(function(){ row.saving = false; });
+      });
+    }).then(function(){
+      refreshCorte();
+      var parts = [];
+      if(okL) parts.push(okL + (okL === 1 ? " partida publicada en Cortes" : " partidas publicadas en Cortes"));
+      if(ok) parts.push(ok + (ok === 1 ? " ubicación guardada" : " ubicaciones guardadas"));
+      var bad = fail + failL;
+      showToast((parts.join(" y ") || "Nada guardado") + (bad ? ". " + bad + " con error, revisa e intenta de nuevo." : "."), !!bad);
+    });
+  }
+
+  function copyCorteUbic(){
+    var lines = corte.rows.map(function(row){
+      if(row.saved) return row.pending;
+      if(row.include && !row.invalid && hasUbic(row)) return rowUbic(row);
+      return row.dupUbic || row.ubicOrig || "";
+    });
+    var text = lines.join("\n");
+    var box = document.getElementById("corteCopyBox");
+    function fallback(){
+      box.innerHTML = '<p class="hint">No pude copiar solo. Selecciona este texto y cópialo con Ctrl+C.</p><textarea id="corteCopyText" rows="4" readonly></textarea>';
+      var ta = document.getElementById("corteCopyText");
+      ta.value = text; ta.focus(); ta.select();
+    }
+    box.innerHTML = "";
+    try{
+      navigator.clipboard.writeText(text).then(function(){
+        showToast("Columna copiada. Pégala en la primera fila de datos de Ubicación en Excel.");
+      }).catch(fallback);
+    }catch(e){ fallback(); }
+  }
+
+  document.getElementById("corteText").addEventListener("paste", function(){ setTimeout(readCorte, 60); });
+  document.getElementById("corteRead").addEventListener("click", readCorte);
+  document.getElementById("corteFile").addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    if(!file) return;
+    var input = e.target;
+    if(typeof XLSX === "undefined"){ showToast("No se pudo cargar el lector de Excel. Revisa tu conexión o pega el corte.", true); input.value = ""; return; }
+    var reader = new FileReader();
+    reader.onerror = function(){ showToast("No se pudo leer el archivo.", true); input.value = ""; };
+    reader.onload = function(evt){
+      try{
+        var wb = XLSX.read(new Uint8Array(evt.target.result), {type: "array"});
+        var sheet = wb.Sheets[wb.SheetNames[0]];
+        var tsv = XLSX.utils.sheet_to_csv(sheet, {FS: "\t", blankrows: false});
+        document.getElementById("corteText").value = tsv;
+        readCorte();
+        showToast("Archivo leído" + (wb.SheetNames.length > 1 ? " (hoja «" + wb.SheetNames[0] + "»)" : "") + ".");
+      }catch(err){
+        showToast("No se pudo leer el Excel: " + (err && err.message || "revisa el archivo"), true);
+      }
+      input.value = "";
+    };
+    reader.readAsArrayBuffer(file);
+  });
+  document.getElementById("corteClear").addEventListener("click", function(){
+    document.getElementById("corteText").value = "";
+    document.getElementById("corteResult").innerHTML = "";
+    corte.rows = [];
+  });
+
+  var DIACRITICS_RE = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g");
+  function normalizeHeader(h){
+    return (h == null ? "" : String(h)).normalize("NFD").replace(DIACRITICS_RE, "").toUpperCase().trim();
+  }
+  function findColIndex(headers, exactCandidates, mustIncludeAll){
+    for(var i=0;i<headers.length;i++){ if(exactCandidates.indexOf(headers[i]) !== -1) return i; }
+    for(var j=0;j<headers.length;j++){
+      var ok = mustIncludeAll.every(function(tok){ return headers[j].indexOf(tok) !== -1; });
+      if(ok) return j;
+    }
+    return -1;
+  }
+
+  /* ---------- escrituras ---------- */
+  function marcarSurtido(id, btn){
+    if(!canWrite()){ denyWrite(); return; }
+    if(!state.db){ dbMissing(); return; }
+    btn.disabled = true; btn.textContent = "Guardando…";
+    state.db.collection("registros").doc(id).update({
+      estado: "surtido", surtido_en: new Date().toISOString(), surtido_por: state.myId
+    }).then(function(){
+      showToast("Marcado como surtido.");
+    }).catch(function(err){
+      showToast("No se pudo actualizar: " + (err && err.message || "intenta de nuevo"), true);
+      btn.disabled = false; btn.textContent = "Marcar como surtido";
+    });
+  }
+  function deleteRecord(id, okMsg){
+    if(!canWrite()){ denyWrite(); return; }
+    if(!state.db){ dbMissing(); return; }
+    state.db.collection("registros").doc(id).delete().then(function(){
+      showToast(okMsg || "Registro eliminado.");
+    }).catch(function(err){
+      showToast("No se pudo eliminar: " + (err && err.message || "intenta de nuevo"), true);
+    });
+  }
+
+  document.getElementById("regForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!canWrite()){ denyWrite(); return; }
+    if(!state.db){ dbMissing(); return; }
+    var pedido = norm(document.getElementById("f-pedido").value);
+    var codigo = norm(document.getElementById("f-codigo").value);
+    var cantidad = parseFloat(document.getElementById("f-cantidad").value);
+    var lote = norm(document.getElementById("f-lote").value);
+    var cajasIn = parseInt(document.getElementById("f-cajas").value, 10);
+    var descIn = document.getElementById("f-desc").value.trim().slice(0, 60);
+    var stdIn = parseFloat(document.getElementById("f-std").value);
+    if(!(stdIn > 0)) stdIn = cajasIn > 0 ? stdFrom(cantidad, cajasIn) : null;
+    var rackSel = RACKS.filter(function(k){ return k.key === document.getElementById("f-rack").value; })[0];
+    var espacioNum = document.getElementById("f-espacio").value;
+    var ubicacion = (rackSel && espacioNum) ? norm(ubicLabel(rackSel, espacioNum)) : "";
+    if(!pedido || !codigo || !lote || !ubicacion || !(cantidad > 0)){
+      showToast("Completa todos los campos con una cantidad mayor a cero.", true);
+      return;
+    }
+    var btn = document.getElementById("submitBtn");
+    btn.disabled = true; btn.textContent = "Guardando…";
+    state.db.collection("registros").add(Object.assign({
+      pedido: pedido, codigo: codigo, cantidad: cantidad, lote: lote, ubicacion: ubicacion,
+      estado: "activo", creado_en: new Date().toISOString(), creado_por: state.myId
+    }, cajasIn > 0 ? {cajas: cajasIn} : {}, descIn ? {descripcion: descIn} : {}, stdIn > 0 ? {estandar: stdIn} : {})).then(function(){
+      showToast("Guardado: " + codigo + " en " + ubicacion);
+      ["f-pedido","f-codigo","f-desc","f-std","f-cantidad","f-cajas","f-lote","f-espacio","f-ubic"].forEach(function(id){ document.getElementById(id).value = ""; });
+      document.getElementById("ubicHint").textContent = "";
+      document.getElementById("ubicHint").className = "field-hint full";
+      document.getElementById("f-pedido").focus();
+    }).catch(function(err){
+      showToast("No se pudo guardar: " + (err && err.message || "intenta de nuevo"), true);
+    }).finally(function(){
+      btn.disabled = false; btn.textContent = "Guardar ubicación";
+    });
+  });
+
+  document.getElementById("f-codigo").addEventListener("change", function(){
+    var i = codeInfo(this.value);
+    var d = document.getElementById("f-desc"), st = document.getElementById("f-std");
+    if(i.desc && !d.value) d.value = i.desc;
+    if(i.std && !st.value) st.value = i.std;
+  });
+
+  /* ---------- ubicación rápida y enlace del QR ----------
+     El QR de cada etiqueta trae el enlace de la página con la ubicación (…?u=A-027).
+     Al abrirlo: espacio libre -> Registro con rack y espacio ya elegidos;
+     espacio ocupado -> Lay Out con el detalle abierto (liberar / sacar cajas / registrar otro material). */
+  function setUbicFields(rk, num){
+    var occ = occupiedSpaces();
+    document.getElementById("f-rack").value = rk.key;
+    fillEspacios(String(num), occ);
+    document.getElementById("f-espacio").value = String(num);
+    document.getElementById("f-ubic").value = ubicLabel(rk, num);
+    updateUbicHint(occ);
+  }
+  function registerAt(key, num){
+    var rk = rackByKey(key);
+    if(!rk || !canWrite()) return;
+    selectTab("registrar");
+    var b = document.querySelector('#regSeg button[data-reg="manual"]'); if(b) b.click();
+    setUbicFields(rk, num);
+    var f = document.getElementById("f-pedido");
+    try{ f.scrollIntoView({block: "center"}); }catch(e){}
+    setTimeout(function(){ f.focus(); }, 60);
+  }
+  document.getElementById("f-ubic").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); applyUbicInput(); } });
+  document.getElementById("f-ubic").addEventListener("change", applyUbicInput);
+  function applyUbicInput(){
+    var inp = document.getElementById("f-ubic"), v = inp.value.trim();
+    if(!v) return;
+    var u = parseUbicacion(v);
+    if(!u){ showToast('No reconocí la ubicación "' + v + '". Usa el formato A-027.', true); return; }
+    setUbicFields(u.rack, u.num);
+    document.getElementById("f-pedido").focus();
+  }
+  var pendingLoc = (function(){
+    var v = "";
+    try{
+      var q = new URLSearchParams(location.search);
+      v = q.get("u") || q.get("ubicacion") || "";
+      if(!v && location.hash){ var m = /[#&?]u=([^&]+)/.exec(location.hash); if(m) v = decodeURIComponent(m[1]); }
+    }catch(e){}
+    return v.trim();
+  })();
+  function tryDeepLink(){
+    if(!pendingLoc || !session || !state.loaded) return;
+    var raw = pendingLoc; pendingLoc = "";
+    try{ history.replaceState(null, "", location.pathname); }catch(e){}
+    if(!canTab("mapa")){ showToast("Tu usuario es de solo consulta: busca el material en Buscar.", true); selectTab("buscar"); return; }
+    var s2 = norm(raw), rm = /^RACK[-\s_]?(.+)$/.exec(s2);
+    if(rm){
+      var rk0 = rackByKey(norm(rm[1]));
+      if(!rk0){ showToast('No reconocí el rack "' + raw + '".', true); return; }
+      selectTab("mapa"); mapSel = null; renderMap();
+      var card = document.getElementById("mapRacks").children[RACKS.indexOf(rk0)];
+      if(card) try{ card.scrollIntoView({block: "start"}); }catch(e){}
+      return;
+    }
+    var u = parseUbicacion(s2);
+    if(!u){ showToast('No reconocí la ubicación "' + raw + '".', true); return; }
+    var recs = occupiedSpaces()[u.rack.key + "|" + u.num] || [];
+    if(!recs.length){ registerAt(u.rack.key, u.num); showToast("Registrando en " + ubicLabel(u.rack, u.num) + " · espacio libre."); return; }
+    selectTab("mapa"); libConfirm = null; mapSel = {key: u.rack.key, num: u.num}; renderMap();
+    var d = document.querySelector(".space-detail");
+    if(d) try{ d.scrollIntoView({block: "center"}); }catch(e){}
+    showToast(ubicLabel(u.rack, u.num) + " tiene material. Puedes liberarlo, sacar cajas o registrar otro.");
+  }
+
+  /* ---------- arranque ---------- */
+  function setConn(cls){ document.getElementById("connDot").className = "conn-dot " + cls; }
+  function boot(){
+    if(!window.claude || !window.claude.use){
+      document.getElementById("dbBanner").hidden = false;
+      setConn("bad");
+      document.getElementById("viewerName").textContent = "Sin conexión";
+      return;
+    }
+    Promise.all([window.claude.use("db"), window.claude.use("user")]).then(function(res){
+      state.db = res[0]; state.user = res[1];
+      var savedU = ssGet("radarcedis_user");
+      if(state.db && savedU && USER_RE.test(savedU)){
+        state.db.collection("usuarios").doc(savedU).get().then(function(snap){
+          if(snap.exists){ session = userFromDoc(snap.data(), snap.id); applySession(); }
+          else ssDel("radarcedis_user");
+        }).catch(function(){});
+      }
+      if(!state.db){ document.getElementById("dbBanner").hidden = false; setConn("bad"); }
+      else { setConn("ok"); }
+      var idP = state.user ? state.user.id() : Promise.resolve(null);
+      var meP = state.user ? state.user.me() : Promise.resolve(null);
+      Promise.all([idP, meP]).then(function(r2){
+        state.myId = r2[0];
+        var me = r2[1];
+        var nameEl = document.getElementById("viewerName");
+        var avEl = document.getElementById("viewerAvatar");
+        nameEl.textContent = (me && me.name) || "Auxiliar de almacén";
+        if(me && me.name && me.avatarUrl){ avEl.src = me.avatarUrl; avEl.hidden = false; }
+      });
+      if(!state.db) return;
+      var activos = [], surtidosHoy = [];
+      function mergeRecords(){
+        var seen = {}, all = [];
+        activos.concat(surtidosHoy).forEach(function(r){ if(!seen[r.id]){ seen[r.id] = true; all.push(r); } });
+        all.sort(function(a, b){ return String(b.creado_en || "").localeCompare(String(a.creado_en || "")); });
+        state.records = all;
+        renderAll();
+      }
+      function dbError(err){
+        var b = document.getElementById("dbBanner");
+        b.hidden = false;
+        b.textContent = "Se perdió la conexión con la base de datos (" + (err && err.code || "error") + "). Recarga la página para reintentar.";
+        setConn("bad");
+      }
+      var startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+      state.db.collection("registros").where("estado", "==", "activo").limit(1000).onSnapshot(function(snap){
+        activos = snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
+        state.loaded = true;
+        mergeRecords();
+        tryDeepLink();
+      }, dbError);
+      state.db.collection("comentarios").orderBy("creado_en", "desc").limit(500).onSnapshot(function(snap){
+        state.comentarios = snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
+        renderBuzon();
+      }, dbError);
+      state.db.collection("llegadas").orderBy("creado_en", "desc").limit(1000).onSnapshot(function(snap){
+        state.llegadas = snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
+        var m = {};
+        state.llegadas.forEach(function(L){ m[llKey(L.pedido, L.codigo, L.lote)] = L; });
+        state.llegMap = m;
+        renderAll();
+      }, dbError);
+      state.db.collection("registros").where("surtido_en", ">=", startOfDay.toISOString()).limit(500).onSnapshot(function(snap){
+        surtidosHoy = snap.docs.map(function(d){ return Object.assign({id: d.id}, d.data()); });
+        mergeRecords();
+      }, dbError);
+    });
+  }
+  renderMap();
+  renderUbicSelects();
+  applySession();
+  boot();
+})();
+</script>
