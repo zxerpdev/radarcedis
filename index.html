@@ -355,6 +355,7 @@
     <button class="tab-btn" data-tab="llegadas"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5"/><path d="M9.5 12.5h6M9.5 16.5h6"/></svg><span>Cortes</span></button>
     <button class="tab-btn" data-tab="mapa"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Lay Out</span></button>
     <button class="tab-btn" data-tab="registrar" data-write="true"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/></svg><span>Registro</span></button>
+    <button class="tab-btn" data-tab="usuarios" data-write="true"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4"/><path d="M18.5 14.8c1.7.8 2.7 2.5 3 5.2"/></svg><span>Usuarios</span></button>
   </nav>
 
   <main>
@@ -499,6 +500,45 @@
       </div>
       <div id="mapRacks" style="display:flex; flex-direction:column; gap:14px;"></div>
       <div id="mapOutside"></div>
+    </section>
+
+    <section class="panel" id="panel-usuarios">
+      <div class="card">
+        <h2>Crear o cambiar un usuario</h2>
+        <p class="hint" style="margin-bottom:14px;">La contraseña se convierte en un hash en este navegador y solo el hash se guarda. Para cambiar la contraseña o el perfil de alguien, guárdalo otra vez con el mismo usuario.</p>
+        <form class="reg-form" id="usrForm" autocomplete="off">
+          <div class="field">
+            <label for="usr-u">Usuario (minúsculas, sin espacios)</label>
+            <input id="usr-u" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="usr-name">Nombre que se muestra</label>
+            <input id="usr-name" maxlength="40" autocomplete="off">
+          </div>
+          <div class="field full">
+            <label for="usr-perfil">Perfil</label>
+            <select id="usr-perfil">
+              <option value="consulta">Solo consulta (Buscar y Cortes)</option>
+              <option value="total">Acceso total (Buscar, Cortes, Lay Out, Registro, buzón recibido y Usuarios)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="usr-pw">Contraseña (mínimo 8 caracteres)</label>
+            <input id="usr-pw" type="password" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label for="usr-pw2">Repite la contraseña</label>
+            <input id="usr-pw2" type="password" autocomplete="new-password">
+          </div>
+          <p class="hint full" style="grid-column:1/-1;">Usa una contraseña nueva que la persona no use en otro sistema. No la mandes por chat ni por correo.</p>
+          <div class="btn-row"><button type="submit" class="btn btn-primary" id="usrSave">Guardar usuario</button></div>
+        </form>
+        <div class="field-hint" id="usrMsg" role="status" style="margin-top:10px;"></div>
+      </div>
+      <div class="card stack">
+        <h2>Usuarios guardados</h2>
+        <div id="usrList"><p class="hint">Cargando…</p></div>
+      </div>
     </section>
 
   </main>
@@ -683,19 +723,134 @@ function hashPassword(pw, saltBytes, iter){
   document.getElementById("logoutBtn").addEventListener("click", function(){
     session = null; ssDel("radarcedis_user");
     takeOpen = null; takeVal = ""; takeTot = ""; libConfirm = null; mapSel = null;
+    resetUsuarios();
     applySession();
     document.getElementById("loginUser").focus();
   });
 
   /* ---------- pestañas ---------- */
   function selectTab(name){
-    if((name === "registrar" && !canWrite()) || !canTab(name)) name = "buscar";
+    if(((name === "registrar" || name === "usuarios") && !canWrite()) || !canTab(name)) name = "buscar";
     document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
     document.querySelectorAll(".panel").forEach(function(p){ p.classList.toggle("active", p.id === "panel-" + name); });
+    if(name === "usuarios") loadUsuarios();
   }
   document.querySelectorAll(".tab-btn").forEach(function(btn){
     btn.addEventListener("click", function(){ selectTab(btn.dataset.tab); });
   });
+
+  /* ---------- usuarios (solo Acceso total) ----------
+     Mismo formato de documento que herramientas/administrar-usuarios.html, para que el login los reconozca.
+     DESVIACIÓN (ver DESVIACIONES.md): el permiso se revisa en el navegador; con las reglas de Firestore abiertas
+     esto ordena quién administra, pero no impide que alguien con la configuración escriba en "usuarios". */
+  var USR_ITER = 200000;
+  var USR_PERFILES = {
+    total:    {write: true,  label: "Acceso total",  tabs: null},
+    consulta: {write: false, label: "Solo consulta", tabs: ["buscar", "llegadas"]}
+  };
+  function buildUserDoc(u, name, perfil, pw){
+    var p = USR_PERFILES[perfil];
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    return hashPassword(pw, salt, USR_ITER).then(function(h){
+      return {u: u, name: name, label: p.label, write: p.write, tabs: p.tabs, salt: bytesToB64(salt), iter: USR_ITER, hash: h,
+              actualizado_en: new Date().toISOString(), actualizado_por: session ? session.u : ""};
+    });
+  }
+  var usrCache = [];
+  function usrSay(text, ok){
+    var m = document.getElementById("usrMsg");
+    m.textContent = text; m.className = "field-hint " + (ok ? "ok" : "warn");
+    m.style.color = ok ? "" : "var(--danger)";
+  }
+  function totalsIn(list){ return list.filter(function(x){ return x.write === true; }).length; }
+  function renderUsuarios(){
+    var host = document.getElementById("usrList");
+    host.innerHTML = "";
+    if(!usrCache.length){ host.innerHTML = '<p class="hint">Todavía no hay usuarios.</p>'; return; }
+    var totals = totalsIn(usrCache);
+    var wrap = document.createElement("div"); wrap.className = "table-wrap";
+    var table = document.createElement("table"); table.style.minWidth = "460px";
+    table.innerHTML = "<thead><tr><th>Usuario</th><th>Nombre</th><th>Perfil</th><th></th></tr></thead>";
+    var tb = document.createElement("tbody");
+    usrCache.forEach(function(x){
+      var tr = document.createElement("tr");
+      [x.id, x.name || "", x.label || ""].forEach(function(t, i){
+        var td = document.createElement("td"); td.textContent = t; if(i === 0) td.className = "mono"; tr.appendChild(td);
+      });
+      var td = document.createElement("td"); td.style.textAlign = "right";
+      var b = document.createElement("button"); b.type = "button"; b.className = "btn btn-danger btn-sm"; b.textContent = "Eliminar";
+      if(session && x.id === session.u){ b.disabled = true; b.title = "No puedes eliminar tu propio usuario"; }
+      else if(x.write === true && totals <= 1){ b.disabled = true; b.title = "Es el único usuario con acceso total"; }
+      if(b.disabled) b.style.opacity = ".45";
+      b.addEventListener("click", function(){ eliminarUsuario(x.id); });
+      td.appendChild(b); tr.appendChild(td); tb.appendChild(tr);
+    });
+    table.appendChild(tb); wrap.appendChild(table); host.appendChild(wrap);
+  }
+  function loadUsuarios(){
+    if(!canWrite()) return;
+    if(!state.db){ document.getElementById("usrList").innerHTML = '<p class="hint">No hay conexión con la base de datos.</p>'; return; }
+    state.db.collection("usuarios").get().then(function(snap){
+      usrCache = snap.docs.map(function(d){ var v = d.data(); return {id: d.id, name: v.name, label: v.label, write: v.write === true}; })
+        .sort(function(a, b){ return a.id.localeCompare(b.id); });
+      renderUsuarios();
+    }).catch(function(err){
+      document.getElementById("usrList").innerHTML = "";
+      usrSay("No se pudo leer la lista de usuarios (" + (err && err.code || "error") + ").", false);
+    });
+  }
+  function eliminarUsuario(id){
+    if(!canWrite()){ denyWrite(); return; }
+    if(session && id === session.u){ usrSay("No puedes eliminar tu propio usuario.", false); return; }
+    var x = usrCache.filter(function(y){ return y.id === id; })[0];
+    if(x && x.write === true && totalsIn(usrCache) <= 1){ usrSay("No se puede eliminar al único usuario con acceso total.", false); return; }
+    if(!window.confirm("¿Eliminar al usuario " + id + "? Ya no podrá entrar a Radar CEDIS.")) return;
+    state.db.collection("usuarios").doc(id).delete().then(function(){
+      usrSay("Usuario " + id + " eliminado.", true); loadUsuarios();
+    }).catch(function(err){ usrSay("No se pudo eliminar: " + (err && err.code || "intenta de nuevo"), false); });
+  }
+  document.getElementById("usrForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!canWrite()){ denyWrite(); return; }
+    var btn = document.getElementById("usrSave");
+    var u = document.getElementById("usr-u").value.trim().toLowerCase();
+    var name = document.getElementById("usr-name").value.trim();
+    var perfil = document.getElementById("usr-perfil").value;
+    var pw = document.getElementById("usr-pw").value, pw2 = document.getElementById("usr-pw2").value;
+    if(!USER_RE.test(u)){ usrSay("El usuario solo puede llevar letras minúsculas, números, punto, guion y guion bajo (máximo 40).", false); return; }
+    if(!name){ usrSay("Escribe el nombre que se mostrará.", false); return; }
+    if(!USR_PERFILES.hasOwnProperty(perfil)){ usrSay("Elige un perfil.", false); return; }
+    if(pw.length < 8){ usrSay("La contraseña debe tener al menos 8 caracteres.", false); return; }
+    if(pw !== pw2){ usrSay("Las dos contraseñas no coinciden.", false); return; }
+    if(!state.db){ dbMissing(); return; }
+    if(!(window.crypto && crypto.subtle)){ usrSay("Abre la página desde https o desde localhost para poder calcular el hash.", false); return; }
+    if(perfil !== "total"){
+      var actual = usrCache.filter(function(y){ return y.id === u; })[0];
+      if(session && u === session.u){ usrSay("No puedes quitarte a ti mismo el acceso total.", false); return; }
+      if(actual && actual.write === true && totalsIn(usrCache) <= 1){ usrSay("Debe quedar al menos un usuario con acceso total.", false); return; }
+    }
+    btn.disabled = true; usrSay("Guardando…", true);
+    state.db.collection("usuarios").doc(u).get().then(function(snap){
+      if(snap.exists && !window.confirm("El usuario " + u + " ya existe. ¿Cambiar su contraseña, nombre y perfil?")) return null;
+      return buildUserDoc(u, name, perfil, pw).then(function(doc){
+        return state.db.collection("usuarios").doc(u).set(doc).then(function(){ return true; });
+      });
+    }).then(function(done){
+      if(!done){ usrSay("No se guardó ningún cambio.", false); return; }
+      document.getElementById("usr-pw").value = ""; document.getElementById("usr-pw2").value = "";
+      if(session && u === session.u){ session.name = name; state.profilesCache[u] = {name: name}; applySession(); }
+      usrSay("Usuario " + u + " guardado.", true);
+      loadUsuarios();
+    }).catch(function(err){
+      usrSay("No se pudo guardar: " + (err && err.code || "intenta de nuevo"), false);
+    }).finally(function(){ btn.disabled = false; });
+  });
+  function resetUsuarios(){
+    usrCache = [];
+    ["usr-u", "usr-name", "usr-pw", "usr-pw2"].forEach(function(id){ document.getElementById(id).value = ""; });
+    document.getElementById("usrList").innerHTML = '<p class="hint">Cargando…</p>';
+    var m = document.getElementById("usrMsg"); m.textContent = ""; m.className = "field-hint";
+  }
 
   /* ---------- llegadas (vista de comercial) ---------- */
   function fmtCorteFecha(f){
